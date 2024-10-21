@@ -38,11 +38,11 @@
 
 ## 安装endstone
 
-这一步请参考endstone官方文档。
+这一步请参考[endstone官方文档](https://endstone.dev/latest/getting-started/installation/)。
 
 ## 安装天眼插件
 
-在release处下载最新版本的插件，放在服务端目录的plugins目录下，运行服务器即可使用。
+在[release](https://github.com/yuhangle/Endstone_TianyanPlugin/releases)处下载最新版本的插件，放在服务端目录的plugins目录下，运行服务端即可使用。
 
 ## 配置天眼插件
 
@@ -126,7 +126,7 @@
 /banlist
 ```
 
-#修改&打包
+# 修改&打包
 
 确保您的python环境中安装了endstone和pipx
 
