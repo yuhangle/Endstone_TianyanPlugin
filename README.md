@@ -138,7 +138,7 @@ git clone https://github.com/yuhangle/Endstone_TianyanPlugin.git
 进入代码目录
 
 ```shell
-cd endstone_TianyanPlugin
+cd Endstone_TianyanPlugin
 ```
 
 打包插件
