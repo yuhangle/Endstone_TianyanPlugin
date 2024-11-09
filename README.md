@@ -126,6 +126,12 @@
 /banlist
 ```
 
+使用/tyclean 命令备份并清理超过两个星期的数据
+
+```shell
+/tyclean
+```
+
 # 修改&打包
 
 确保您的python环境中安装了endstone和pipx

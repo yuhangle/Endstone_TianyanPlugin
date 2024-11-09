@@ -13,105 +13,71 @@ import time as tm
 from collections import defaultdict
 import re
 
-# 初始化内存数据存储
 chestrec_data = []
 breakrec_data = []
 animalrec_data = []
 placerec_data = []
 lock = threading.Lock()  # 用于线程安全的锁
-# 防冲突
 running_lock = threading.Lock()
 is_running = False
 
 # 定义写入文件的函数
 def write_to_file():
-    global chestrec_data
-    global breakrec_data
-    global animalrec_data
-    global placerec_data
-    global is_running
-    with lock:  # 确保线程安全
+    global chestrec_data, breakrec_data, animalrec_data, placerec_data, is_running
+    with lock:
         with running_lock:
             if is_running:
                 return
             is_running = True
-            
-        try:
-            
-            # 箱子交互
-            if chestrec_data:  # 只有在有数据时才写入
-                if os.path.exists(chestdata):
-                    with open(chestdata, 'r', encoding='utf-8') as f:
-                        data = json.load(f)
-                else:
-                    data = []
+    try:
+        # 只写入有更新的数据
+        if chestrec_data:
+            append_to_json_file(chestdata, chestrec_data)
+            chestrec_data.clear()
 
-                # 添加新的交互记录
-                data.extend(chestrec_data)  
-                with open(chestdata, 'w', encoding='utf-8') as f:
-                    json.dump(data, f, ensure_ascii=False, indent=4)
-                    
-                # 清空内存中的数据
-                chestrec_data = []
-            # 方块破坏        
-            if breakrec_data:  # 只有在有数据时才写入
-                if os.path.exists(breakdata):
-                    with open(breakdata, 'r', encoding='utf-8') as f:
-                        data = json.load(f)
-                else:
-                    data = []
+        if breakrec_data:
+            append_to_json_file(breakdata, breakrec_data)
+            breakrec_data.clear()
 
-                # 添加新的交互记录
-                data.extend(breakrec_data)  
-                with open(breakdata, 'w', encoding='utf-8') as f:
-                    json.dump(data, f, ensure_ascii=False, indent=4)
+        if animalrec_data:
+            append_to_json_file(animaldata, animalrec_data)
+            animalrec_data.clear()
 
-                # 清空内存中的数据
-                breakrec_data = []
-            # 生物被打        
-            if animalrec_data:  # 只有在有数据时才写入
-                if os.path.exists(animaldata):
-                    with open(animaldata, 'r', encoding='utf-8') as f:
-                        data = json.load(f)
-                else:
-                    data = []
+        if placerec_data:
+            append_to_json_file(placedata, placerec_data)
+            placerec_data.clear()
+    finally:
+        with running_lock:
+            is_running = False
 
-                # 添加新的交互记录
-                data.extend(animalrec_data)  
-                with open(animaldata, 'w', encoding='utf-8') as f:
-                    json.dump(data, f, ensure_ascii=False, indent=4)
+# 文件追加模式 将新数据追加到已有的 JSON 内容中
 
-                # 清空内存中的数据
-                animalrec_data = []
-
-            # 方块放置        
-            if placerec_data:  # 只有在有数据时才写入
-                if os.path.exists(placedata):
-                    with open(placedata, 'r', encoding='utf-8') as f:
-                        data = json.load(f)
-                else:
-                    data = []
-
-                # 添加新的交互记录
-                data.extend(placerec_data)  
-                with open(placedata, 'w', encoding='utf-8') as f:
-                    json.dump(data, f, ensure_ascii=False, indent=4)
-
-                # 清空内存中的数据
-                placerec_data = []
-        finally:
-            with running_lock:
-                is_running = False
+def append_to_json_file(filename, data_list):
+    if os.path.exists(filename):
+        with open(filename, 'r+', encoding='utf-8') as f:
+            try:
+                existing_data = json.load(f)
+            except json.JSONDecodeError:
+                existing_data = []
+            existing_data.extend(data_list)
+            f.seek(0)
+            json.dump(existing_data, f, ensure_ascii=False, indent=4)
+            f.truncate()
+    else:
+        with open(filename, 'w', encoding='utf-8') as f:
+            json.dump(data_list, f, ensure_ascii=False, indent=4)
 
 def periodic_write():
     while True:
         write_to_file()
         tm.sleep(60)
 
-# 启动定时写入线程
+
+
 thread = threading.Thread(target=periodic_write)
 thread.daemon = True
 thread.start()
+
 
 
 # 关闭插件时写入文件
@@ -382,7 +348,7 @@ class TianyanPlugin(Plugin):
         self.logger.info("on_load is called!")
 
     def on_enable(self) -> None:
-        self.logger.info(f"{ColorFormat.YELLOW}天眼插件已启用  版本V1.0.0  配置文件位于plugins/tianyan_data/config.json")
+        self.logger.info(f"{ColorFormat.YELLOW}天眼插件已启用  版本V1.0.1  配置文件位于plugins/tianyan_data/config.json")
         self.logger.info(f"{ColorFormat.YELLOW}其余数据文件位于plugins/tianyan_data/")
         # 监听事件
         self.register_events(self)
@@ -464,7 +430,7 @@ class TianyanPlugin(Plugin):
                         if not isinstance(sender, Player):
                             self.logger.info(f"{ColorFormat.YELLOW}\n行为实施者: {name}   行为: {action}\n坐标: {coordinates}   时间: {time}\n对象类型: {type}      维度: {world}\n" + "-" * 20)
                         else:
-                            sender.send_message(f"{ColorFormat.YELLOW}行为实施者: {name}   行为: {action}   坐标: {coordinates}   时间: {time}\n对象类型: {type}      维度: {world}\n")
+                            sender.send_message(f"{ColorFormat.YELLOW}行为实施者: {name}   行为: {action}   坐标: {coordinates}   时间: {time}   对象类型: {type}      维度: {world}\n")
                             sender.send_message("-" * 20)
                     
         elif command.name == "tyb":
@@ -542,7 +508,7 @@ class TianyanPlugin(Plugin):
                         if not isinstance(sender, Player):
                             self.logger.info(f"{ColorFormat.YELLOW}\n行为实施者: {name}   行为: {action}\n坐标: {coordinates}   时间: {time}\n对象类型: {type}      维度: {world}\n" + "-" * 20)
                         else:
-                            sender.send_message(f"{ColorFormat.YELLOW}行为实施者: {name}   行为: {action}   坐标: {coordinates}   时间: {time}\n对象类型: {type}      维度: {world}\n")
+                            sender.send_message(f"{ColorFormat.YELLOW}行为实施者: {name}   行为: {action}   坐标: {coordinates}   时间: {time}   对象类型: {type}      维度: {world}\n")
                             sender.send_message("-" * 20)
         
         elif command.name == "tya":
@@ -615,7 +581,7 @@ class TianyanPlugin(Plugin):
                         if not isinstance(sender, Player):
                             self.logger.info(f"{ColorFormat.YELLOW}\n行为实施者: {name}   行为: {action}\n坐标: {coordinates}   时间: {time}\n对象类型: {type}      维度: {world}\n" + "-" * 20)
                         else:
-                            sender.send_message(f"{ColorFormat.YELLOW}行为实施者: {name}   行为: {action}   坐标: {coordinates}   时间: {time}\n对象类型: {type}      维度: {world}\n")
+                            sender.send_message(f"{ColorFormat.YELLOW}行为实施者: {name}   行为: {action}   坐标: {coordinates}   时间: {time}   对象类型: {type}      维度: {world}\n")
                             sender.send_message("-" * 20)
 
                         
@@ -633,7 +599,7 @@ class TianyanPlugin(Plugin):
             sender.send_message("使用 /typ 命令查询方块放置记录 格式 /typ x坐标 y坐标 z坐标 时间（单位：小时） 半径")
             sender.send_message("使用 /tys 命令搜索关键词 格式 /tys 搜索类型 行为类型 搜索关键词 时间（单位：小时）")
             sender.send_message("搜索类型:player action object(玩家或行为实施者 行为 被实施行为的对象) 行为类型:jh ph st fz(交互 破坏 实体受击 放置) 搜索关键词:玩家名或行为实施者名 交互 破坏 攻击 放置 被实施行为的对象名")
-            sender.send_message("使用/tyclean 命令清理超过两个星期的数据")
+            sender.send_message("使用/tyclean 命令清理超过两个星期的数据(旧数据会备份在插件数据目录下backup文件夹中)")
             
         elif command.name == "tyclean":
             global is_running
@@ -722,7 +688,7 @@ class TianyanPlugin(Plugin):
                         if not isinstance(sender, Player):
                             self.logger.info(f"{ColorFormat.YELLOW}\n行为实施者: {name}   行为: {action}\n坐标: {coordinates}   时间: {time}\n对象类型: {type}      维度: {world}\n" + "-" * 20)
                         else:
-                            sender.send_message(f"{ColorFormat.YELLOW}行为实施者: {name}   行为: {action}   坐标: {coordinates}   时间: {time}\n对象类型: {type}      维度: {world}\n")
+                            sender.send_message(f"{ColorFormat.YELLOW}行为实施者: {name}   行为: {action}   坐标: {coordinates}   时间: {time}   对象类型: {type}      维度: {world}\n")
                             sender.send_message("-" * 20)
         elif command.name == "ban":
             if len(args) == 0:
@@ -1030,7 +996,7 @@ class TianyanPlugin(Plugin):
                         if not isinstance(sender, Player):
                             self.logger.info(f"{ColorFormat.YELLOW}\n行为实施者: {record['name']}   行为: {record['action']}\n坐标: {record['coordinates']}   时间: {record['time']}\n对象类型: {record['type']}      维度: {record['world']}\n" + "-" * 20)
                         else:
-                            sender.send_message(f"{ColorFormat.YELLOW}行为实施者: {record['name']}   行为: {record['action']}   坐标: {record['coordinates']}   时间: {record['time']}\n对象类型: {record['type']}      维度: {record['world']}\n")
+                            sender.send_message(f"{ColorFormat.YELLOW}行为实施者: {record['name']}   行为: {record['action']}   坐标: {record['coordinates']}   时间: {record['time']}   对象类型: {record['type']}      维度: {record['world']}\n")
                             sender.send_message("-" * 20)
                 
                 if actiontype == "jh":
@@ -1474,7 +1440,9 @@ class TianyanPlugin(Plugin):
 #        self.server.broadcast_message(ColorFormat.YELLOW + f"{event.player.name}" + "位置" f"{event.block.x}"" " + f"{event.block.y}"" " + f"{event.block.z}" + f"{event.block.type}" + f"{event.block.location.dimension.name}" + f"{event.item}" + f"{inv}")
 # 用于调试的生物事件
 #    @event_handler
-#    def test(self,event: BlockPlaceEvent):  
+#    def test(self,event: BlockPlaceEvent): 
+#        current_tps = self.server.current_tps
+#        self.server.broadcast_message(f"{current_tps}") 
 #        self.server.broadcast_message(ColorFormat.YELLOW + f"{Player.inventory}")
 # 用于调试的命令发送事件
 #    @event_handler
@@ -1615,6 +1583,7 @@ class TianyanPlugin(Plugin):
         pid = getattr(player, 'device_id', '未知设备ID')
         pos = getattr(player, 'device_os', '未知系统')
         self.logger.info(f"{ColorFormat.YELLOW}玩家{pname}(设备ID:{pid} 系统名称:{pos})加入了游戏")
+        
             
         
 player_commands = defaultdict(list)
