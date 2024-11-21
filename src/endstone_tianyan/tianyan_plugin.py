@@ -12,6 +12,28 @@ import shutil
 import time as tm
 from collections import defaultdict
 import re
+import sqlite3
+
+# 初始化 SQLite 数据库
+db_file = "plugins/tianyan_data/tydata.db"
+conn = sqlite3.connect(db_file, check_same_thread=False)
+cursor = conn.cursor()
+
+# 创建表格
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS interactions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT,
+    action TEXT,
+    x INTEGER,
+    y INTEGER,
+    z INTEGER,
+    type TEXT,
+    world TEXT,
+    time TEXT
+)
+""")
+conn.commit()
 
 chestrec_data = []
 breakrec_data = []
@@ -21,8 +43,8 @@ lock = threading.Lock()  # 用于线程安全的锁
 running_lock = threading.Lock()
 is_running = False
 
-# 定义写入文件的函数
-def write_to_file():
+# 写入数据到 SQLite
+def write_to_db():
     global chestrec_data, breakrec_data, animalrec_data, placerec_data, is_running
     with lock:
         with running_lock:
@@ -30,72 +52,99 @@ def write_to_file():
                 return
             is_running = True
     try:
-        # 只写入有更新的数据
-        if chestrec_data:
-            append_to_json_file(chestdata, chestrec_data)
-            chestrec_data.clear()
-
-        if breakrec_data:
-            append_to_json_file(breakdata, breakrec_data)
-            breakrec_data.clear()
-
-        if animalrec_data:
-            append_to_json_file(animaldata, animalrec_data)
-            animalrec_data.clear()
-
         if placerec_data:
-            append_to_json_file(placedata, placerec_data)
+            with conn:
+                for data in placerec_data:
+                    cursor.execute("""
+                        INSERT INTO interactions (name, action, x, y, z, type, world, time)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    """, (
+                        data['name'],
+                        data['action'],
+                        data['coordinates']['x'],
+                        data['coordinates']['y'],
+                        data['coordinates']['z'],
+                        data['type'],
+                        data['world'],
+                        data['time']
+                    ))
             placerec_data.clear()
+        if chestrec_data:
+            with conn:
+                for data in chestrec_data:
+                    cursor.execute("""
+                        INSERT INTO interactions (name, action, x, y, z, type, world, time)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    """, (
+                        data['name'],
+                        data['action'],
+                        data['coordinates']['x'],
+                        data['coordinates']['y'],
+                        data['coordinates']['z'],
+                        data['type'],
+                        data['world'],
+                        data['time']
+                    ))
+            chestrec_data.clear()
+        if breakrec_data:
+            with conn:
+                for data in breakrec_data:
+                    cursor.execute("""
+                        INSERT INTO interactions (name, action, x, y, z, type, world, time)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    """, (
+                        data['name'],
+                        data['action'],
+                        data['coordinates']['x'],
+                        data['coordinates']['y'],
+                        data['coordinates']['z'],
+                        data['type'],
+                        data['world'],
+                        data['time']
+                    ))
+            breakrec_data.clear()
+        if animalrec_data:
+            with conn:
+                for data in animalrec_data:
+                    cursor.execute("""
+                        INSERT INTO interactions (name, action, x, y, z, type, world, time)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    """, (
+                        data['name'],
+                        data['action'],
+                        data['coordinates']['x'],
+                        data['coordinates']['y'],
+                        data['coordinates']['z'],
+                        data['type'],
+                        data['world'],
+                        data['time']
+                    ))
+            animalrec_data.clear()
     finally:
         with running_lock:
             is_running = False
 
-# 文件追加模式 将新数据追加到已有的 JSON 内容中
-
-def append_to_json_file(filename, data_list):
-    if os.path.exists(filename):
-        with open(filename, 'r+', encoding='utf-8') as f:
-            try:
-                existing_data = json.load(f)
-            except json.JSONDecodeError:
-                existing_data = []
-            existing_data.extend(data_list)
-            f.seek(0)
-            json.dump(existing_data, f, ensure_ascii=False, indent=4)
-            f.truncate()
-    else:
-        with open(filename, 'w', encoding='utf-8') as f:
-            json.dump(data_list, f, ensure_ascii=False, indent=4)
-
+# 定期写入数据
 def periodic_write():
     while True:
-        write_to_file()
+        write_to_db()
         tm.sleep(60)
 
-
-
+# 启动线程定期写入
 thread = threading.Thread(target=periodic_write)
 thread.daemon = True
 thread.start()
 
-
-
 # 关闭插件时写入文件
 def on_plugin_close():
-    write_to_file()  # 确保在关闭时写入文件
+    write_to_db()  # 确保在关闭时写入文件
     
     
 subdir = "plugins/tianyan_data"
 if not os.path.exists(subdir):
     os.makedirs(subdir)
-chestdata = os.path.join('plugins/tianyan_data/chestdata.json')
-breakdata = os.path.join('plugins/tianyan_data/breakdata.json')
-animaldata = os.path.join('plugins/tianyan_data/animaldata.json')
-placedata = os.path.join('plugins/tianyan_data/placedata.json')
-backupdata = os.path.join('plugins/tianyan_data/backup')
 banlist = os.path.join('plugins/tianyan_data/banlist.json')
 banidlist = os.path.join('plugins/tianyan_data/banidlist.json')
-
 config_file = os.path.join(subdir, 'config.json')
 
 default_config = {
@@ -128,93 +177,7 @@ elif natural == 0 and human == 0:
 elif natural == 0 and human == 1:
     blockrec = 4
 
-def clean():
 
-# guolv 函数保持不变
-    
-    def guolv(timedir, filename):
-        # 获取当前时间
-        current_time = datetime.now()
-        
-        # 定义时间过滤条件（336小时）
-        time_threshold = timedelta(hours=336)
-        
-        # 初始化过滤后的数据列表
-        filtered_data = []
-        
-        # 读取 JSON 文件
-        moved_data = os.path.join(timedir, filename)
-        with open(moved_data, 'r', encoding='utf-8') as file:
-            # 解析 JSON 数据
-            data = json.load(file)
-            
-            # 遍历数据并过滤
-            for item in data:
-                # 解析时间
-                event_time = datetime.fromisoformat(item['time'])
-                
-                # 检查时间是否在336小时内
-                if (current_time - event_time) <= time_threshold:
-                    filtered_data.append(item)
-        
-        # 将过滤后的数据写入新文件
-        new_file = os.path.join(subdir, filename)
-        with open(new_file, 'w', encoding='utf-8') as output_file:
-            json.dump(filtered_data, output_file, indent=4)
-            
-    if not os.path.exists(backupdata):
-        os.mkdir(backupdata)
-    chestb, breakb, animalb, placeb= 0, 0, 0, 0
-    if os.path.exists(chestdata):
-        chestb = 1
-    if os.path.exists(breakdata):
-        breakb = 1
-    if os.path.exists(animaldata):
-        animalb = 1
-    if os.path.exists(placedata):
-        placeb = 1
-    
-    now = datetime.now()
-    folder_name = now.strftime("%Y%m%d_%H%M%S")
-    timedir = os.path.join(backupdata, folder_name)
-    
-    # 创建新的备份文件夹
-    os.makedirs(timedir, exist_ok=True)
-    
-    # 移动文件到备份目录
-    suchest, subreak, suanimal, suplace= "备份并清理容器及其它交互数据失败", "备份并清理方块破坏数据失败", "备份并清理生物受击数据失败", "备份并清理方块放置数据失败"
-    
-    if chestb == 1:
-        shutil.move(chestdata, timedir)
-        suchest = "成功备份并清理容器及其它交互数据"
-    
-    if breakb == 1:
-        shutil.move(breakdata, timedir)
-        subreak = "成功备份并清理方块破坏数据"
-    
-    if animalb == 1:
-        shutil.move(animaldata, timedir)
-        suanimal = "成功备份并清理生物受击数据"
-        
-    if placeb == 1:
-        shutil.move(placedata, timedir)
-        suplace = "成功备份并清理方块放置数据"
-    
-    # 仅当有文件需要处理时才调用 guolv 函数
-    
-    if chestb == 1:
-        guolv(timedir, "chestdata.json")
-    
-    if breakb == 1:
-        guolv(timedir, "breakdata.json")
-    
-    if animalb == 1:
-        guolv(timedir, "animaldata.json")
-        
-    if placeb == 1:
-        guolv(timedir, "placedata.json")
-    
-    return suchest, subreak, suanimal, suplace
  
            
 
@@ -222,30 +185,10 @@ class TianyanPlugin(Plugin):
     api_version = "0.5"
 
     commands = {
-        "tyc": {
-            "description": "查询容器交互记录及其它交互记录 --格式 /tyc x坐标 y坐标 z坐标 时间（单位：小时） 半径",
-            "usages": ["/tyc [pos:pos] [float:float] [float:float]"],
-            "permissions": ["tianyan_plugin.command.tyc"],
-        },
-        "tyb": {
-            "description": "查询方块破坏记录 --格式 /tyb x坐标 y坐标 z坐标 时间（单位：小时） 半径",
-            "usages": ["/tyb [pos:pos] [float:float] [float:float]"],
-            "permissions": ["tianyan_plugin.command.tyb"],
-        },
-        "tya": {
-            "description": "查询生物受击记录 --格式 /tya x坐标 y坐标 z坐标 时间（单位：小时） 半径",
-            "usages": ["/tya [pos:pos] [float:float] [float:float]"],
-            "permissions": ["tianyan_plugin.command.tya"],
-        },
-        "typ": {
-            "description": "查询方块放置记录 --格式 /typ x坐标 y坐标 z坐标 时间（单位：小时） 半径",
-            "usages": ["/typ [pos:pos] [float:float] [float:float]"],
-            "permissions": ["tianyan_plugin.command.typ"],
-        },
-        "tyclean": {
-            "description": "备份并清理超过两个星期的数据(仅管理员可用)",
-            "usages": ["/tyclean"],
-            "permissions": ["tianyan_plugin.command.tyclean"],
+        "ty": {
+            "description": "查询玩家&部分实体行为记录 --格式 /ty x坐标 y坐标 z坐标 时间（单位：小时） 半径",
+            "usages": ["/ty [pos:pos] [float:float] [float:float]"],
+            "permissions": ["tianyan_plugin.command.ty"],
         },
         "tyhelp": {
             "description": "查看天眼命令帮助信息",
@@ -283,31 +226,15 @@ class TianyanPlugin(Plugin):
             "permissions": ["tianyan_plugin.command.banidlist"],
         },
         "tys": {
-            "description": "关键词搜索 --格式 /tys 搜索类型 行为类型 查询关键词 时间（单位：小时） (仅管理员可用)",
-            "usages": ["/tys <msg: message> <msg: message> <msg: message> <msg: message>"],
+            "description": "关键词搜索 --格式 /tys 搜索类型  查询关键词 时间（单位：小时） (仅管理员可用)",
+            "usages": ["/tys <msg: message> <msg: message> <float:float>"],
             "permissions": ["tianyan_plugin.command.tys"],
         },
     }
 
     permissions = {
-        "tianyan_plugin.command.tyc": {
-            "description": "让用户可以查询容器交互记录及其它交互记录",
-            "default": True, 
-        },
-        "tianyan_plugin.command.tyb": {
-            "description": "让用户可以查询方块破坏记录",
-            "default": True, 
-        },
-        "tianyan_plugin.command.tya": {
-            "description": "让用户可以查询生物受击记录",
-            "default": True, 
-        },
-        "tianyan_plugin.command.tyclean": {
-            "description": "管理员清理过期数据",
-            "default": "op", 
-        },
-        "tianyan_plugin.command.typ": {
-            "description": "让用户可以查询方块放置记录",
+        "tianyan_plugin.command.ty": {
+            "description": "查询玩家&部分实体行为记录",
             "default": True, 
         },
         "tianyan_plugin.command.ban": {
@@ -348,7 +275,7 @@ class TianyanPlugin(Plugin):
         self.logger.info("on_load is called!")
 
     def on_enable(self) -> None:
-        self.logger.info(f"{ColorFormat.YELLOW}天眼插件已启用  版本V1.0.1  配置文件位于plugins/tianyan_data/config.json")
+        self.logger.info(f"{ColorFormat.YELLOW}天眼插件已启用  版本V1.1.0  配置文件位于plugins/tianyan_data/config.json")
         self.logger.info(f"{ColorFormat.YELLOW}其余数据文件位于plugins/tianyan_data/")
         # 监听事件
         self.register_events(self)
@@ -358,234 +285,8 @@ class TianyanPlugin(Plugin):
         on_plugin_close()
            
     def on_command(self, sender: CommandSender, command: Command, args: list[str]) -> bool:
-        
-        if command.name == "tyc":
-            if len(args) <= 2:
-                if not isinstance(sender, Player):
-                    self.logger.info(f"{ColorFormat.RED}命令格式错误！请检查命令是否正确；如果使用~ ~ ~，请直接输入坐标")
-                else:
-                    sender.send_error_message("命令格式错误！请检查命令是否正确；如果使用~ ~ ~，请直接输入坐标")
-                return True
-            elif "~" in args[0]:
-                if not isinstance(sender, Player):
-                    self.logger.info(f"{ColorFormat.RED}命令格式错误！请检查命令是否正确；如果使用~ ~ ~，请直接输入坐标")
-                else:
-                    sender.send_error_message("命令格式错误！请检查命令是否正确；如果使用~ ~ ~，请直接输入坐标")
-            elif float(args[2]) > 100:
-                if not isinstance(sender, Player):
-                    self.logger.info(f"{ColorFormat.RED}查询半径最大值为100 !")
-                else:
-                    sender.send_error_message("查询半径最大值为100 !")
-            # 检查文件是否存在
-            elif not os.path.exists(chestdata):
-                if not isinstance(sender, Player):
-                    self.logger.info(f"数据文件不存在")
-                else:
-                    sender.send_error_message(f"数据文件不存在")
-            else:
-                positions = args[0]  
-                #sender.send_message(positions)
-                times = float(args[1])
-                r = float(args[2])
-                coordinates = positions
-                x, y, z = map(float, coordinates.split())
-                with open(chestdata, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
-                results = []
-            
-                # 获取当前时间
-                current_time = datetime.now()
-            
-                for record in data:
-                    record_x = record['coordinates']['x']
-                    record_y = record['coordinates']['y']
-                    record_z = record['coordinates']['z']
-                    record_time = datetime.fromisoformat(record['time'])
-                
-                    distance = math.sqrt((record_x - x) ** 2 + (record_y - y) ** 2 + (record_z - z) ** 2)
-                
-                    time_difference = current_time - record_time
-                
-                    if distance <= r and time_difference <= timedelta(hours=times):
-                        results.append(record)
-                # 将结果发送给用户
-                #print(results)
-                if not results:
-                    if not isinstance(sender, Player):
-                        self.logger.info(f"{ColorFormat.YELLOW}未查询到任何结果。")
-                    else:
-                        sender.send_message(f"{ColorFormat.YELLOW}未查询到任何结果。")
-                else:
-                    if not isinstance(sender, Player):
-                        self.logger.info(f"{ColorFormat.YELLOW}已为您查询到此坐标半径{r}格{times}小时内的容器交互记录及其它交互记录")
-                    else:
-                        sender.send_message(f"{ColorFormat.YELLOW}已为您查询到此坐标半径{r}格{times}小时内的容器交互记录及其它交互记录")
-                    for item in results:
-                        name = item['name']
-                        coordinates = item['coordinates']
-                        type = item['type']
-                        time = item['time']
-                        world = item['world']
-                        action = item['action']
-                        if not isinstance(sender, Player):
-                            self.logger.info(f"{ColorFormat.YELLOW}\n行为实施者: {name}   行为: {action}\n坐标: {coordinates}   时间: {time}\n对象类型: {type}      维度: {world}\n" + "-" * 20)
-                        else:
-                            sender.send_message(f"{ColorFormat.YELLOW}行为实施者: {name}   行为: {action}   坐标: {coordinates}   时间: {time}   对象类型: {type}      维度: {world}\n")
-                            sender.send_message("-" * 20)
-                    
-        elif command.name == "tyb":
-            if blockrec == 3:
-                if not isinstance(sender, Player):
-                    self.logger.info(f"{ColorFormat.RED}未启用方块破坏记录！")
-                else:
-                    sender.send_error_message("未启用方块破坏记录！")
-            elif len(args) <= 2:
-                if not isinstance(sender, Player):
-                    self.logger.info(f"{ColorFormat.RED}命令格式错误！请检查命令是否正确；如果使用~ ~ ~，请直接输入坐标")
-                else:
-                    sender.send_error_message("命令格式错误！请检查命令是否正确；如果使用~ ~ ~，请直接输入坐标")
-                return True
-            elif "~" in args[0]:
-                if not isinstance(sender, Player):
-                    self.logger.info(f"{ColorFormat.RED}命令格式错误！请检查命令是否正确；如果使用~ ~ ~，请直接输入坐标")
-                else:
-                    sender.send_error_message("命令格式错误！请检查命令是否正确；如果使用~ ~ ~，请直接输入坐标")
-            elif float(args[2]) > 100:
-                if not isinstance(sender, Player):
-                    self.logger.info(f"{ColorFormat.RED}查询半径最大值为100 !")
-                else:
-                    sender.send_error_message("查询半径最大值为100 !")
-            elif not os.path.exists(breakdata):
-                if not isinstance(sender, Player):
-                    self.logger.info(f"数据文件不存在")
-                else:
-                    sender.send_error_message(f"数据文件不存在")
-            else:
-                positions = args[0]  
-                #sender.send_message(positions)
-                times = float(args[1])
-                r = float(args[2])
-                coordinates = positions
-                x, y, z = map(float, coordinates.split())
-                with open(breakdata, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
-                results = []
-            
-                # 获取当前时间
-                current_time = datetime.now()
-            
-                for record in data:
-                    record_x = record['coordinates']['x']
-                    record_y = record['coordinates']['y']
-                    record_z = record['coordinates']['z']
-                    record_time = datetime.fromisoformat(record['time'])
-                
-                    distance = math.sqrt((record_x - x) ** 2 + (record_y - y) ** 2 + (record_z - z) ** 2)
-                
-                    time_difference = current_time - record_time
-                
-                    if distance <= r and time_difference <= timedelta(hours=times):
-                        results.append(record)
-                # 将结果发送给用户
-                #print(results)
-                if not results:
-                    if not isinstance(sender, Player):
-                        self.logger.info(f"{ColorFormat.YELLOW}未查询到任何结果。")
-                    else:
-                        sender.send_message(f"{ColorFormat.YELLOW}未查询到任何结果。")
-                else:
-                    if not isinstance(sender, Player):
-                        self.logger.info(f"{ColorFormat.YELLOW}已为您查询到此坐标半径{r}格{times}小时内的方块破坏信息")
-                    else:
-                        sender.send_message(f"{ColorFormat.YELLOW}已为您查询到此坐标半径{r}格{times}小时内的方块破坏信息")
-                    for item in results:
-                        name = item['name']
-                        coordinates = item['coordinates']
-                        type = item['type']
-                        time = item['time']
-                        world = item['world']
-                        action = item['action']
-                        if not isinstance(sender, Player):
-                            self.logger.info(f"{ColorFormat.YELLOW}\n行为实施者: {name}   行为: {action}\n坐标: {coordinates}   时间: {time}\n对象类型: {type}      维度: {world}\n" + "-" * 20)
-                        else:
-                            sender.send_message(f"{ColorFormat.YELLOW}行为实施者: {name}   行为: {action}   坐标: {coordinates}   时间: {time}   对象类型: {type}      维度: {world}\n")
-                            sender.send_message("-" * 20)
-        
-        elif command.name == "tya":
-            if len(args) <= 2:
-                if not isinstance(sender, Player):
-                    self.logger.info(f"{ColorFormat.RED}命令格式错误！请检查命令是否正确；如果使用~ ~ ~，请直接输入坐标")
-                else:
-                    sender.send_error_message("命令格式错误！请检查命令是否正确；如果使用~ ~ ~，请直接输入坐标")
-                return True
-            elif "~" in args[0]:
-                if not isinstance(sender, Player):
-                    self.logger.info(f"{ColorFormat.RED}命令格式错误！请检查命令是否正确；如果使用~ ~ ~，请直接输入坐标")
-                else:
-                    sender.send_error_message("命令格式错误！请检查命令是否正确；如果使用~ ~ ~，请直接输入坐标")
-            elif float(args[2]) > 100:
-                if not isinstance(sender, Player):
-                    self.logger.info(f"{ColorFormat.RED}查询半径最大值为100 !")
-                else:
-                    sender.send_error_message("查询半径最大值为100 !")
-            elif not os.path.exists(animaldata):
-                if not isinstance(sender, Player):
-                    self.logger.info(f"数据文件不存在")
-                else:
-                    sender.send_error_message(f"数据文件不存在")
-            else:
-                positions = args[0]  
-                #sender.send_message(positions)
-                times = float(args[1])
-                r = float(args[2])
-                coordinates = positions
-                x, y, z = map(float, coordinates.split())
-                with open(animaldata, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
-                results = []
-            
-                # 获取当前时间
-                current_time = datetime.now()
-            
-                for record in data:
-                    record_x = record['coordinates']['x']
-                    record_y = record['coordinates']['y']
-                    record_z = record['coordinates']['z']
-                    record_time = datetime.fromisoformat(record['time'])
-                
-                    distance = math.sqrt((record_x - x) ** 2 + (record_y - y) ** 2 + (record_z - z) ** 2)
-                
-                    time_difference = current_time - record_time
-                
-                    if distance <= r and time_difference <= timedelta(hours=times):
-                        results.append(record)
-                # 将结果发送给用户
-                #print(results)
-                if not results:
-                    if not isinstance(sender, Player):
-                        self.logger.info(f"{ColorFormat.YELLOW}未查询到任何结果。")
-                    else:
-                        sender.send_message(f"{ColorFormat.YELLOW}未查询到任何结果。")
-                else:
-                    if not isinstance(sender, Player):
-                        self.logger.info(f"{ColorFormat.YELLOW}已为您查询到此坐标半径{r}格{times}小时内的生物受击信息")
-                    else:
-                        sender.send_message(f"{ColorFormat.YELLOW}已为您查询到此坐标半径{r}格{times}小时内的生物受击信息")
-                    for item in results:
-                        name = item['name']
-                        coordinates = item['coordinates']
-                        type = item['type']
-                        time = item['time']
-                        world = item['world']
-                        action = item['action']
-                        if not isinstance(sender, Player):
-                            self.logger.info(f"{ColorFormat.YELLOW}\n行为实施者: {name}   行为: {action}\n坐标: {coordinates}   时间: {time}\n对象类型: {type}      维度: {world}\n" + "-" * 20)
-                        else:
-                            sender.send_message(f"{ColorFormat.YELLOW}行为实施者: {name}   行为: {action}   坐标: {coordinates}   时间: {time}   对象类型: {type}      维度: {world}\n")
-                            sender.send_message("-" * 20)
-
                         
-        elif command.name == "tyhelp":
+        if command.name == "tyhelp":
             sender.send_message("天眼命令使用方法")
             sender.send_message("使用/ban 命令将一名玩家加入黑名单(当目标玩家在线时添加黑名单无法直接踢出，请使用其它方法踢出该玩家) 格式 /ban 玩家名 理由(选填)")
             sender.send_message("使用/unban 命令将一名玩家移出黑名单 格式 /unban 玩家名")
@@ -593,32 +294,10 @@ class TianyanPlugin(Plugin):
             sender.send_message("使用/banid 命令将一名玩家的设备加入黑名单(当目标玩家设备在线时添加黑名单无法直接踢出，请使用其它方法踢出该玩家) 格式 /banid 设备ID")
             sender.send_message("使用/unbanid 命令将一名玩家的设备移出黑名单 格式 /unban 设备ID")
             sender.send_message("使用/banlist 命令列出所有被加入黑名单的玩家的设备ID")
-            sender.send_message("使用 /tyc 命令查询容器交互记录及其它交互记录 格式 /tyc x坐标 y坐标 z坐标 时间（单位：小时） 半径")
-            sender.send_message("使用 /tyb 命令查询方块破坏记录 格式 /tyb x坐标 y坐标 z坐标 时间（单位：小时） 半径")
-            sender.send_message("使用 /tya 命令查询生物受击记录 格式 /tya x坐标 y坐标 z坐标 时间（单位：小时） 半径")
-            sender.send_message("使用 /typ 命令查询方块放置记录 格式 /typ x坐标 y坐标 z坐标 时间（单位：小时） 半径")
-            sender.send_message("使用 /tys 命令搜索关键词 格式 /tys 搜索类型 行为类型 搜索关键词 时间（单位：小时）")
-            sender.send_message("搜索类型:player action object(玩家或行为实施者 行为 被实施行为的对象) 行为类型:jh ph st fz(交互 破坏 实体受击 放置) 搜索关键词:玩家名或行为实施者名 交互 破坏 攻击 放置 被实施行为的对象名")
-            sender.send_message("使用/tyclean 命令清理超过两个星期的数据(旧数据会备份在插件数据目录下backup文件夹中)")
+            sender.send_message("使用 /tyc 命令查询查询玩家&部分实体行为记录 格式 /ty x坐标 y坐标 z坐标 时间（单位：小时） 半径")
+            sender.send_message("搜索类型:player action object(玩家或行为实施者 行为 被实施行为的对象) 搜索关键词:玩家名或行为实施者名 交互 破坏 攻击 放置 被实施行为的对象名")
             
-        elif command.name == "tyclean":
-            global is_running
-            with running_lock:
-                if is_running:
-                    error = "行为日志正在保存，无法进行操作，请稍后再试"
-                    if not isinstance(sender, Player):
-                        self.logger.info(error)
-                    else:
-                        sender.send_error_message(error)
-                    return
-            sender.send_message("等待")
-            suchest,subreak,suanimal,suplace = clean()
-            sender.send_message(f"{ColorFormat.YELLOW}{suchest}")
-            sender.send_message(f"{ColorFormat.YELLOW}{subreak}")
-            sender.send_message(f"{ColorFormat.YELLOW}{suanimal}")
-            sender.send_message(f"{ColorFormat.YELLOW}{suplace}")
-            
-        elif command.name == "typ":
+        elif command.name == "ty":
             if len(args) <= 2:
                 if not isinstance(sender, Player):
                     self.logger.info(f"{ColorFormat.RED}命令格式错误！请检查命令是否正确；如果使用~ ~ ~，请直接输入坐标")
@@ -635,39 +314,39 @@ class TianyanPlugin(Plugin):
                     self.logger.info(f"{ColorFormat.RED}查询半径最大值为100 !")
                 else:
                     sender.send_error_message("查询半径最大值为100 !")
-            elif not os.path.exists(placedata):
-                if not isinstance(sender, Player):
-                    self.logger.info(f"数据文件不存在")
-                else:
-                    sender.send_error_message(f"数据文件不存在")
             else:
-                positions = args[0]  
-                #sender.send_message(positions)
+                positions = args[0]
                 times = float(args[1])
                 r = float(args[2])
                 coordinates = positions
                 x, y, z = map(float, coordinates.split())
-                with open(placedata, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
-                results = []
-            
+                
                 # 获取当前时间
                 current_time = datetime.now()
-            
-                for record in data:
-                    record_x = record['coordinates']['x']
-                    record_y = record['coordinates']['y']
-                    record_z = record['coordinates']['z']
-                    record_time = datetime.fromisoformat(record['time'])
+                time_threshold = current_time - timedelta(hours=times)
                 
-                    distance = math.sqrt((record_x - x) ** 2 + (record_y - y) ** 2 + (record_z - z) ** 2)
+                # 查询数据库
+                results = []
+                query = """
+                SELECT name, action, x, y, z, type, world, time FROM interactions
+                WHERE (x - ?)*(x - ?) + (y - ?)*(y - ?) + (z - ?)*(z - ?) <= ?
+                AND time >= ?
+                """
+                radius_squared = r ** 2
+                with conn:
+                    cursor.execute(query, (x, x, y, y, z, z, radius_squared, time_threshold.isoformat()))
+                    rows = cursor.fetchall()
+                    for row in rows:
+                        results.append({
+                            'name': row[0],
+                            'action': row[1],
+                            'coordinates': {'x': row[2], 'y': row[3], 'z': row[4]},
+                            'type': row[5],
+                            'world': row[6],
+                            'time': row[7]
+                        })
                 
-                    time_difference = current_time - record_time
-                
-                    if distance <= r and time_difference <= timedelta(hours=times):
-                        results.append(record)
-                # 将结果发送给用户
-                #print(results)
+                # 处理结果
                 if not results:
                     if not isinstance(sender, Player):
                         self.logger.info(f"{ColorFormat.YELLOW}未查询到任何结果。")
@@ -675,9 +354,9 @@ class TianyanPlugin(Plugin):
                         sender.send_message(f"{ColorFormat.YELLOW}未查询到任何结果。")
                 else:
                     if not isinstance(sender, Player):
-                        self.logger.info(f"{ColorFormat.YELLOW}已为您查询到此坐标半径{r}格{times}小时内的方块放置信息")
+                        self.logger.info(f"{ColorFormat.YELLOW}已为您查询到此坐标半径{r}格{times}小时内的玩家&部分实体行为记录")
                     else:
-                        sender.send_message(f"{ColorFormat.YELLOW}已为您查询到此坐标半径{r}格{times}小时内的方块放置信息")
+                        sender.send_message(f"{ColorFormat.YELLOW}已为您查询到此坐标半径{r}格{times}小时内的玩家&部分实体行为记录")
                     for item in results:
                         name = item['name']
                         coordinates = item['coordinates']
@@ -689,7 +368,7 @@ class TianyanPlugin(Plugin):
                             self.logger.info(f"{ColorFormat.YELLOW}\n行为实施者: {name}   行为: {action}\n坐标: {coordinates}   时间: {time}\n对象类型: {type}      维度: {world}\n" + "-" * 20)
                         else:
                             sender.send_message(f"{ColorFormat.YELLOW}行为实施者: {name}   行为: {action}   坐标: {coordinates}   时间: {time}   对象类型: {type}      维度: {world}\n")
-                            sender.send_message("-" * 20)
+                            #sender.send_message("-" * 20)
         elif command.name == "ban":
             if len(args) == 0:
                 if not isinstance(sender, Player):
@@ -938,122 +617,96 @@ class TianyanPlugin(Plugin):
                         else:
                             sender.send_error_message(f"设备ID {device_id} 于{timestamp}被封禁")
         elif command.name == "tys":
-            if len(args) <= 3:
+            if len(args) <= 2:
                 if not isinstance(sender, Player):
                     self.logger.info(f"{ColorFormat.RED}命令格式错误！请检查命令是否正确")
                 else:
                     sender.send_error_message("命令格式错误！请检查命令是否正确")
                 return True
-            elif args[0] not in ["player","action","object"]: # 玩家 行为 对象
+            elif args[0] not in ["player", "action", "object"]:  # 玩家、行为、对象
                 if not isinstance(sender, Player):
-                    self.logger.info(f"{ColorFormat.RED}命令格式错误！未知的参数{args[0]}")
+                    self.logger.info(f"{ColorFormat.RED}命令格式错误！未知的参数 {args[0]}")
                 else:
-                    sender.send_error_message(f"命令格式错误！未知的参数{args[0]}")
-            elif args[1] not in ["jh","ph","st","fz"]: # 交互 破坏 实体受击 放置
-                if not isinstance(sender, Player):
-                    self.logger.info(f"{ColorFormat.RED}命令格式错误！未知的参数{args[1]}")
-                else:
-                    sender.send_error_message(f"命令格式错误！未知的参数{args[1]}")
+                    sender.send_error_message(f"命令格式错误！未知的参数 {args[0]}")
             else:
                 searchtype = args[0]  # 搜索类型
-                actiontype = args[1] #行为类型
-                searchobject = args[2] #搜索对象
-                time = float(args[3]) # 搜索时间范围
-                def search_json(filename, keyword, time, stype):
+                searchobject = args[1]  # 搜索关键词
+                time = float(args[2])  # 搜索时间范围
+
+                def search_db(keyword, time, stype):
                     """
-                    读取JSON文件，根据关键词搜索指定时间范围内的信息。
+                    从 SQLite 数据库中查询符合条件的记录。
 
                     Args:
-                        filename: JSON文件名
                         keyword: 搜索关键词
-                        time_delta: 时间范围，单位小时
+                        time: 时间范围（单位：小时）
+                        stype: 搜索字段类型
 
                     Returns:
                         符合条件的记录列表
                     """
-
-                    with open(filename, 'r', encoding='utf-8') as f:
-                        data = json.load(f)
-
                     now = datetime.now()
                     search_time = now - timedelta(hours=time)
 
+                    query = f"""
+                    SELECT name, action, x, y, z, type, world, time 
+                    FROM interactions
+                    WHERE {stype} LIKE ?
+                    AND time >= ?
+                    """
                     results = []
-                    for record in data:
-                        record_time = datetime.fromisoformat(record['time'])
-                        if record_time >= search_time and keyword in record[stype]:
-                            results.append(record)
-
+                    with conn:
+                        cursor.execute(query, (f"%{keyword}%", search_time.isoformat()))
+                        rows = cursor.fetchall()
+                        for row in rows:
+                            results.append({
+                                'name': row[0],
+                                'action': row[1],
+                                'coordinates': {'x': row[2], 'y': row[3], 'z': row[4]},
+                                'type': row[5],
+                                'world': row[6],
+                                'time': row[7]
+                            })
                     return results
-                def output(filename, keyword, time, stype):
-                    results = search_json(filename, keyword, time, stype)
-                    if not isinstance(sender, Player):
-                        self.logger.info(f"{ColorFormat.YELLOW}\n已为您查询到关键词 {keyword} 的以下相关内容" + "-" * 20)
-                    else:
-                        sender.send_message(f"{ColorFormat.YELLOW}已为您查询到关键词 {keyword} 的以下相关内容\n")
-                        sender.send_message("-" * 20)
-                    for record in results:
+
+                def output(keyword, time, stype):
+                    results = search_db(keyword, time, stype)
+                    if not results:
                         if not isinstance(sender, Player):
-                            self.logger.info(f"{ColorFormat.YELLOW}\n行为实施者: {record['name']}   行为: {record['action']}\n坐标: {record['coordinates']}   时间: {record['time']}\n对象类型: {record['type']}      维度: {record['world']}\n" + "-" * 20)
+                            self.logger.info(f"{ColorFormat.YELLOW}未查询到任何结果。")
                         else:
-                            sender.send_message(f"{ColorFormat.YELLOW}行为实施者: {record['name']}   行为: {record['action']}   坐标: {record['coordinates']}   时间: {record['time']}   对象类型: {record['type']}      维度: {record['world']}\n")
+                            sender.send_message(f"{ColorFormat.YELLOW}未查询到任何结果。")
+                    else:
+                        if not isinstance(sender, Player):
+                            self.logger.info(f"{ColorFormat.YELLOW}\n已为您查询到关键词 {keyword} 的以下相关内容" + "-" * 20)
+                        else:
+                            sender.send_message(f"{ColorFormat.YELLOW}已为您查询到关键词 {keyword} 的以下相关内容\n")
                             sender.send_message("-" * 20)
-                
-                if actiontype == "jh":
-                    filename = chestdata
-                elif actiontype == "ph":
-                    filename = breakdata
-                elif actiontype == "st":
-                    filename = animaldata
-                elif actiontype == "fz":
-                    filename = placedata
-                
-                if blockrec == 3:
-                    if not isinstance(sender, Player):
-                        self.logger.info(f"{ColorFormat.RED}未启用方块破坏记录！")
-                    else:
-                        sender.send_error_message("未启用方块破坏记录！")
-                elif not os.path.exists(breakdata) and actiontype == "ph":
-                    if not isinstance(sender, Player):
-                        self.logger.info(f"方块破坏数据文件不存在")
-                    else:
-                        sender.send_error_message(f"方块破坏数据文件不存在")
-                elif not os.path.exists(chestdata) and actiontype == "jh":
-                    if not isinstance(sender, Player):
-                        self.logger.info(f"方块交互数据文件不存在")
-                    else:
-                        sender.send_error_message(f"方块交互数据文件不存在")
-                elif not os.path.exists(animaldata) and actiontype == "st":
-                    if not isinstance(sender, Player):
-                        self.logger.info(f"实体受击数据文件不存在")
-                    else:
-                        sender.send_error_message(f"实体受击数据文件不存在")
-                elif not os.path.exists(placedata) and actiontype == "fz":
-                    if not isinstance(sender, Player):
-                        self.logger.info(f"方块放置数据文件不存在")
-                    else:
-                        sender.send_error_message(f"方块放置数据文件不存在")
-                else:
-                    # 玩家名搜索
-                    if searchtype == "player":
-                        stype = "name"
-                        keyword = searchobject
-                        output(filename, keyword, time, stype)
-                    # 行为搜索
-                    elif searchtype == "action":
-                        stype = "action"
-                        keyword = searchobject
-                        output(filename, keyword, time, stype)
-                    # 对象目标搜索
-                    elif searchtype == "object":
-                        stype = "type"
-                        keyword = searchobject
-                        output(filename, keyword, time, stype)
+                        for record in results:
+                            if not isinstance(sender, Player):
+                                self.logger.info(f"{ColorFormat.YELLOW}\n行为实施者: {record['name']}   行为: {record['action']}\n坐标: {record['coordinates']}   时间: {record['time']}\n对象类型: {record['type']}      维度: {record['world']}\n" + "-" * 20)
+                            else:
+                                sender.send_message(f"{ColorFormat.YELLOW}行为实施者: {record['name']}   行为: {record['action']}   坐标: {record['coordinates']}   时间: {record['time']}   对象类型: {record['type']}      维度: {record['world']}\n")
+                                #sender.send_message("-" * 20)
+
+                # 玩家名搜索
+                if searchtype == "player":
+                    stype = "name"
+                    keyword = searchobject
+                    output(keyword, time, stype)
+                # 行为搜索
+                elif searchtype == "action":
+                    stype = "action"
+                    keyword = searchobject
+                    output(keyword, time, stype)
+                # 对象目标搜索
+                elif searchtype == "object":
+                    stype = "type"
+                    keyword = searchobject
+                    output(keyword, time, stype)
+
         return True
         
-   
-
-  
 # 容器交互和其它交互事件
     @event_handler
     def blockjh(self,event: PlayerInteractEvent): 
@@ -1404,8 +1057,10 @@ class TianyanPlugin(Plugin):
                 z = event.actor.location.z
                 type = event.actor.name
                 world = event.actor.location.dimension.name
-                record_data(name,action, x, y, z,type,world)
-                
+                record_data(name,action, x, y, z,type,world)   
+
+# 等待测试再写回  
+
 # 方块放置事件
     @event_handler
     def blockplace(self, event: BlockPlaceEvent):
