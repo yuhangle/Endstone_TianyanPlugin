@@ -4,10 +4,10 @@ build-backend = "hatchling.build"
 
 [project]
 name = "endstone-tianyan"
-version = "1.0.1"
+version = "1.1.0"
 description = "一个可以记录和查询容器交互和其它交互行为、方块放置与破坏和生物受击记录的endstone插件"
 authors = [
-    { name = "yuhang"},
+    { name = "yuhang"}
 ]
 
 [project.entry-points."endstone"]
