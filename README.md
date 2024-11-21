@@ -38,11 +38,11 @@
 
 ## 安装endstone
 
-这一步请参考[endstone官方文档](https://endstone.dev/latest/getting-started/installation/)。
+这一步请参考endstone官方文档。
 
 ## 安装天眼插件
 
-在[release](https://github.com/yuhangle/Endstone_TianyanPlugin/releases)处下载最新版本的插件，放在服务端目录的plugins目录下，运行服务端即可使用。
+在release处下载最新版本的插件，放在服务端目录的plugins目录下，运行服务器即可使用。
 
 ## 配置天眼插件
 
@@ -58,37 +58,19 @@
 
 天眼命令使用方法
 
-使用 /tyc 命令查询容器交互记录及其它交互记录 格式:
+使用 /ty 命令查询玩家及部分实体行为记录 格式:
 
 ```shell
-/tyc x坐标 y坐标 z坐标 时间（单位：小时） 半径
-```
-
-使用 /tyb 命令查询方块破坏记录 格式:
-
-```shell
-/tyb x坐标 y坐标 z坐标 时间（单位：小时） 半径
-```
-
-使用 /tya 命令查询生物受击记录 格式:
-
-```shell
-/tya x坐标 y坐标 z坐标 时间（单位：小时） 半径
-```
-
-使用 /typ 命令查询方块放置记录 格式:
-
-```shell
-/typ x坐标 y坐标 z坐标 时间（单位：小时） 半径
+/ty x坐标 y坐标 z坐标 时间（单位：小时） 半径
 ```
 
 使用 /tys 命令搜索关键词 格式:
 
 ```shell
-/tys 搜索类型 行为类型 搜索关键词 时间（单位：小时）
+/tys 搜索类型 搜索关键词 时间（单位：小时）
 ```
 
-搜索类型:player action object(玩家或行为实施者 行为 被实施行为的对象) 行为类型:jh ph st fz(交互 破坏 实体受击 放置) 搜索关键词:玩家名或行为实施者名 交互 破坏 攻击 放置 被实施行为的对象名。关键词可以为玩家名、行为名、行为实施者名、被实施行为的对象名，其中行为名共以下几种：交互、破坏、攻击、放置；被实施行为的对象名除了以下类型为中文值，其余皆为游戏中的ID：箱子、陷阱箱、潜影盒、末影箱、木桶、漏斗、发射器、投掷器、熔炉、高炉。
+搜索类型:player action object(玩家或行为实施者 行为 被实施行为的对象)  搜索关键词:玩家名或行为实施者名 交互 破坏 攻击 放置 被实施行为的对象名。关键词可以为玩家名、行为名、行为实施者名、被实施行为的对象名，其中行为名共以下几种：交互、破坏、攻击、放置；被实施行为的对象名除了以下类型为中文值，其余皆为游戏中的ID：箱子、陷阱箱、潜影盒、末影箱、木桶、漏斗、发射器、投掷器、熔炉、高炉。
 
 使用/ban 命令将一名玩家加入黑名单(当目标玩家在线时添加黑名单无法直接踢出，请使用其它方法踢出该玩家) 格式:
 
@@ -126,25 +108,19 @@
 /banlist
 ```
 
-使用/tyclean 命令备份并清理超过两个星期的数据
-
-```shell
-/tyclean
-```
-
-# 修改&打包
+#修改&打包
 
 确保您的python环境中安装了endstone和pipx
 
 克隆代码
 ```shell
-git clone https://github.com/yuhangle/Endstone_TianyanPlugin.git
+git clone https://github.com/yuhangle/endstone_TianyanPlugin.git
 ```
 
 进入代码目录
 
 ```shell
-cd Endstone_TianyanPlugin
+cd endstone_TianyanPlugin
 ```
 
 打包插件
