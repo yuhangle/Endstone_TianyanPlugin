@@ -13,6 +13,7 @@ import time as tm
 from collections import defaultdict
 import re
 import sqlite3
+from endstone.form import ModalForm,Dropdown,Label,ActionForm,TextInput,Slider,MessageForm
 
 # 初始化 SQLite 数据库
 db_file = "plugins/tianyan_data/tydata.db"
@@ -230,6 +231,21 @@ class TianyanPlugin(Plugin):
             "usages": ["/tys <msg: message> <msg: message> <float:float>"],
             "permissions": ["tianyan_plugin.command.tys"],
         },
+        "tygui": {
+            "description": "使用图形窗口查询玩家&部分实体行为记录",
+            "usages": ["/tygui"],
+            "permissions": ["tianyan_plugin.command.tygui"],
+        },
+        "tysgui": {
+            "description": "使用图形窗口搜索关键词查询玩家&部分实体行为记录",
+            "usages": ["/tygui"],
+            "permissions": ["tianyan_plugin.command.tysgui"],
+        }
+        #"test": {
+        #    "description": "2",
+        #    "usages": ["/test"],
+        #    "permissions": ["tianyan_plugin.command.test"],
+        #},
     }
 
     permissions = {
@@ -268,6 +284,18 @@ class TianyanPlugin(Plugin):
         "tianyan_plugin.command.tyhelp": {
             "description": "查看天眼命令帮助信息",
             "default": True, 
+        },
+        "tianyan_plugin.command.tygui": {
+            "description": "使用图形窗口查询玩家&部分实体行为记录",
+            "default": True, 
+        },
+        "tianyan_plugin.command.tysgui": {
+            "description": "使用图形窗口搜索关键词查询玩家&部分实体行为记录",
+            "default": "op", 
+        },
+        "tianyan_plugin.command.test": {
+            "description": "1",
+            "default": True, 
         }
     }
 
@@ -275,7 +303,7 @@ class TianyanPlugin(Plugin):
         self.logger.info("on_load is called!")
 
     def on_enable(self) -> None:
-        self.logger.info(f"{ColorFormat.YELLOW}天眼插件已启用  版本V1.1.0  配置文件位于plugins/tianyan_data/config.json")
+        self.logger.info(f"{ColorFormat.YELLOW}天眼插件已启用  版本V1.1.1  配置文件位于plugins/tianyan_data/config.json")
         self.logger.info(f"{ColorFormat.YELLOW}其余数据文件位于plugins/tianyan_data/")
         # 监听事件
         self.register_events(self)
@@ -287,15 +315,18 @@ class TianyanPlugin(Plugin):
     def on_command(self, sender: CommandSender, command: Command, args: list[str]) -> bool:
                         
         if command.name == "tyhelp":
-            sender.send_message("天眼命令使用方法")
-            sender.send_message("使用/ban 命令将一名玩家加入黑名单(当目标玩家在线时添加黑名单无法直接踢出，请使用其它方法踢出该玩家) 格式 /ban 玩家名 理由(选填)")
-            sender.send_message("使用/unban 命令将一名玩家移出黑名单 格式 /unban 玩家名")
-            sender.send_message("使用/banlist 命令列出所有被加入黑名单的玩家名")
-            sender.send_message("使用/banid 命令将一名玩家的设备加入黑名单(当目标玩家设备在线时添加黑名单无法直接踢出，请使用其它方法踢出该玩家) 格式 /banid 设备ID")
-            sender.send_message("使用/unbanid 命令将一名玩家的设备移出黑名单 格式 /unban 设备ID")
-            sender.send_message("使用/banlist 命令列出所有被加入黑名单的玩家的设备ID")
-            sender.send_message("使用 /tyc 命令查询查询玩家&部分实体行为记录 格式 /ty x坐标 y坐标 z坐标 时间（单位：小时） 半径")
-            sender.send_message("搜索类型:player action object(玩家或行为实施者 行为 被实施行为的对象) 搜索关键词:玩家名或行为实施者名 交互 破坏 攻击 放置 被实施行为的对象名")
+            sender.send_message(f"{ColorFormat.YELLOW}天眼命令使用方法")
+            sender.send_message(f"{ColorFormat.YELLOW}使用/ban 命令将一名玩家加入黑名单 格式 /ban 玩家名 理由(选填)")
+            sender.send_message(f"{ColorFormat.YELLOW}使用/unban 命令将一名玩家移出黑名单 格式 /unban 玩家名")
+            sender.send_message(f"{ColorFormat.YELLOW}使用/banlist 命令列出所有被加入黑名单的玩家名")
+            sender.send_message(f"{ColorFormat.YELLOW}使用/banid 命令将一名玩家的设备加入黑名单(当目标玩家设备在线时添加黑名单无法直接踢出，请使用其它方法踢出该玩家) 格式 /banid 设备ID")
+            sender.send_message(f"{ColorFormat.YELLOW}使用/unbanid 命令将一名玩家的设备移出黑名单 格式 /unban 设备ID")
+            sender.send_message(f"{ColorFormat.YELLOW}使用/banlist 命令列出所有被加入黑名单的玩家的设备ID")
+            sender.send_message(f"{ColorFormat.YELLOW}使用 /ty 命令查询查询玩家&部分实体行为记录 格式 /ty x坐标 y坐标 z坐标 时间（单位：小时） 半径")
+            sender.send_message(f"{ColorFormat.YELLOW}使用 /tys 命令使用关键词查询玩家&部分实体行为记录 格式 关键词搜索 格式 /tys 搜索类型  查询关键词 时间（单位：小时） (仅管理员可用)")
+            sender.send_message(f"{ColorFormat.YELLOW}使用/tygui 命令使用图形窗口查询玩家&部分实体行为记录")
+            sender.send_message(f"{ColorFormat.YELLOW}使用/tysgui 命令使用图形窗口搜索关键词查询玩家&部分实体行为记录 (仅管理员可用)")
+            sender.send_message(f"{ColorFormat.YELLOW}tys命令参数解析 搜索类型:player action object(玩家或行为实施者 行为 被实施行为的对象) 搜索关键词:玩家名或行为实施者名 交互 破坏 攻击 放置 被实施行为的对象名")
             
         elif command.name == "ty":
             if len(args) <= 2:
@@ -356,7 +387,8 @@ class TianyanPlugin(Plugin):
                     if not isinstance(sender, Player):
                         self.logger.info(f"{ColorFormat.YELLOW}已为您查询到此坐标半径{r}格{times}小时内的玩家&部分实体行为记录")
                     else:
-                        sender.send_message(f"{ColorFormat.YELLOW}已为您查询到此坐标半径{r}格{times}小时内的玩家&部分实体行为记录")
+                        sender.send_message(f"{ColorFormat.YELLOW}已为您查询到此坐标半径{r}格{times}小时内的玩家&部分实体行为记录，请通过弹窗查看")
+                    output_message = ""  # 创建一个空字符串用于存储所有输出信息
                     for item in results:
                         name = item['name']
                         coordinates = item['coordinates']
@@ -364,11 +396,22 @@ class TianyanPlugin(Plugin):
                         time = item['time']
                         world = item['world']
                         action = item['action']
-                        if not isinstance(sender, Player):
-                            self.logger.info(f"{ColorFormat.YELLOW}\n行为实施者: {name}   行为: {action}\n坐标: {coordinates}   时间: {time}\n对象类型: {type}      维度: {world}\n" + "-" * 20)
-                        else:
-                            sender.send_message(f"{ColorFormat.YELLOW}行为实施者: {name}   行为: {action}   坐标: {coordinates}   时间: {time}   对象类型: {type}      维度: {world}\n")
-                            #sender.send_message("-" * 20)
+                        
+                        # 格式化单条记录的信息
+                        message = f"{ColorFormat.YELLOW} 行为实施者: {name} \n 行为: {action} \n 坐标: {coordinates} \n 时间: {time} \n 对象类型: {type} \n 维度: {world}\n"
+                        output_message += message + "-" * 20 + "\n"  # 将单条记录添加到总输出中                  
+                    if not isinstance(sender, Player):
+                        self.logger.info(output_message)
+                    else:
+                        self.server.get_player(sender.name).send_form(
+                            MessageForm(
+                                title=f'{ColorFormat.YELLOW}半径{r}格{times}小时内的查询记录',
+                                content=output_message,
+                                button1='确定',
+                                button2='取消'
+                            )
+                        )
+                        
         elif command.name == "ban":
             if len(args) == 0:
                 if not isinstance(sender, Player):
@@ -423,9 +466,10 @@ class TianyanPlugin(Plugin):
                     
                     if not isinstance(sender, Player):
                         self.logger.info(f"玩家 {playername} 已被加入黑名单，理由：{reason}")
+                        self.server.dispatch_command(self.server.command_sender,f'kick {playername} 理由：{reason}')
                     else:
                         sender.send_error_message(f"玩家 {playername} 已被加入黑名单，理由：{reason}")
-                        sender.perform_command(f"kick {playername} {reason}")
+                        sender.perform_command(f"kick {playername} 理由：{reason}")
         
         elif command.name == "unban":
             if len(args) == 0:
@@ -680,14 +724,23 @@ class TianyanPlugin(Plugin):
                         if not isinstance(sender, Player):
                             self.logger.info(f"{ColorFormat.YELLOW}\n已为您查询到关键词 {keyword} 的以下相关内容" + "-" * 20)
                         else:
-                            sender.send_message(f"{ColorFormat.YELLOW}已为您查询到关键词 {keyword} 的以下相关内容\n")
-                            sender.send_message("-" * 20)
+                            sender.send_message(f"{ColorFormat.YELLOW}已为您查询到关键词 {keyword} 的相关内容，请通过弹窗查看\n")
+                        output_message = ""  # 创建一个空字符串用于存储所有输出信息
                         for record in results:
-                            if not isinstance(sender, Player):
-                                self.logger.info(f"{ColorFormat.YELLOW}\n行为实施者: {record['name']}   行为: {record['action']}\n坐标: {record['coordinates']}   时间: {record['time']}\n对象类型: {record['type']}      维度: {record['world']}\n" + "-" * 20)
-                            else:
-                                sender.send_message(f"{ColorFormat.YELLOW}行为实施者: {record['name']}   行为: {record['action']}   坐标: {record['coordinates']}   时间: {record['time']}   对象类型: {record['type']}      维度: {record['world']}\n")
-                                #sender.send_message("-" * 20)
+                        # 格式化单条记录的信息
+                            message = f" {ColorFormat.YELLOW}行为实施者: {record['name']} \n 行为: {record['action']} \n 坐标: {record['coordinates']} \n 时间: {record['time']} \n 对象类型: {record['type']} \n 维度: {record['world']}\n"
+                            output_message += message + "-" * 20 + "\n"  # 将单条记录添加到总输出中   
+                        if not isinstance(sender, Player):
+                            self.logger.info(output_message)
+                        else:
+                            self.server.get_player(sender.name).send_form(
+                                MessageForm(
+                                    title=f'{ColorFormat.YELLOW}关键词{keyword}在{time}小时内的查询记录',
+                                    content=output_message,
+                                    button1='确定',
+                                    button2='取消'
+                                )
+                            )
 
                 # 玩家名搜索
                 if searchtype == "player":
@@ -704,6 +757,60 @@ class TianyanPlugin(Plugin):
                     stype = "type"
                     keyword = searchobject
                     output(keyword, time, stype)
+                    
+        elif command.name == "tygui":
+            if not isinstance(sender, Player):
+                sender.send_error_message("控制台无法使用该命令")
+            else:
+                submit = lambda player, json_str: (
+                    self.logger.info(f"Received JSON: {json_str}"),  # 记录日志
+                    player.perform_command(
+                        f'ty {__import__("json").loads(json_str)[0]} {__import__("json").loads(json_str)[1]} {__import__("json").loads(json_str)[2]}'
+                    )
+                )
+                self.server.get_player(sender.name).send_form(
+                    ModalForm(
+                        title=f'{ColorFormat.YELLOW}天眼查询菜单',
+                        controls=[
+                            TextInput(label='坐标', placeholder='输入查询坐标'),
+                            TextInput(label='时间', placeholder='输入查询时间（单位小时）'),
+                            TextInput(label='半径', placeholder='输入查询半径')
+                        ],
+                        on_submit=submit
+                    )
+                )
+            
+        elif command.name == "tysgui":
+            if not isinstance(sender, Player):
+                sender.send_error_message("控制台无法使用该命令")
+            else:
+                submit = lambda player, json_str: (
+                    self.logger.info(f"Received JSON: {json_str}"),  # 记录日志
+                    player.perform_command(
+                        f'tys {['player','action','object'][__import__('json').loads(json_str)[0]]} {__import__("json").loads(json_str)[1]} {__import__("json").loads(json_str)[2]}'
+                    )
+                )
+                self.server.get_player(sender.name).send_form(
+                    ModalForm(
+                        title=f'{ColorFormat.YELLOW}天眼关键词查询菜单',
+                        controls=[
+                            Dropdown(label='选择搜索类型(玩家或行为实施者 行为 被实施行为的对象)',options=['player','action','object']),
+                            TextInput(label='关键词', placeholder='输入查询关键词'),
+                            TextInput(label='时间', placeholder='输入查询时间（单位小时）'),
+                        ],
+                        on_submit=submit
+                    )
+                )
+            
+        elif command.name == "test":
+            self.server.get_player(sender.name).send_form(
+                MessageForm(
+                    title='测试表单',
+                    content='先帝创业未半而中道崩殂，今天下三分，益州疲弊，此诚危急存亡之秋也。然侍卫之臣不懈于内，忠志之士忘身于外者，盖追先帝之殊遇，欲报之于陛下也。诚宜开张圣听，以光先帝遗德，恢弘志士之气，不宜妄自菲薄，引喻失义，以塞忠谏之路也。',
+                    button1='确定',
+                    button2='取消'
+                )
+            )
 
         return True
         
@@ -1153,11 +1260,11 @@ class TianyanPlugin(Plugin):
             # 检查文件是否存在
             if not os.path.exists(banlist):
                 # 如果文件不存在，创建一个空的黑名单文件
-                with open(banlist, 'w') as file:
+                with open(banlist, 'w',encoding='utf-8') as file:
                     json.dump({}, file)
 
             # 读取黑名单文件
-            with open(banlist, 'r') as file:
+            with open(banlist, 'r', encoding='utf-8') as file:
                 blacklist = json.load(file)
             # 将玩家名和理由写入黑名单
             timestamp = datetime.now().isoformat()  # 使用当前时间戳作为默认值
