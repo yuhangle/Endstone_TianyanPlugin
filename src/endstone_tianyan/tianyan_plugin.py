@@ -14,6 +14,7 @@ from collections import defaultdict
 import re
 import sqlite3
 from endstone.form import ModalForm,Dropdown,Label,ActionForm,TextInput,Slider,MessageForm
+from endstone.inventory import Inventory,PlayerInventory
 
 # 初始化 SQLite 数据库
 db_file = "plugins/tianyan_data/tydata.db"
@@ -129,7 +130,7 @@ def write_to_db():
 def periodic_write():
     while True:
         write_to_db()
-        tm.sleep(60)
+        tm.sleep(20)
 
 # 启动线程定期写入
 thread = threading.Thread(target=periodic_write)
@@ -196,20 +197,20 @@ class TianyanPlugin(Plugin):
             "usages": ["/tyhelp"],
             "permissions": ["tianyan_plugin.command.tyhelp"],
         },
-        "ban": {
+        "tyban": {
             "description": "封禁一名玩家(仅管理员可用)",
-            "usages": ["/ban <msg: message> [msg: message]"],
-            "permissions": ["tianyan_plugin.command.ban"],
+            "usages": ["/tyban <msg: message> [msg: message]"],
+            "permissions": ["tianyan_plugin.command.tyban"],
         },
-        "unban": {
+        "tyunban": {
             "description": "从黑名单中移除玩家(仅管理员可用)",
-            "usages": ["/unban <msg: message> [msg: message]"],
-            "permissions": ["tianyan_plugin.command.unban"],
+            "usages": ["/tyunban <msg: message> [msg: message]"],
+            "permissions": ["tianyan_plugin.command.tyunban"],
         },
-        "banlist": {
+        "tybanlist": {
             "description": "列出所有加入黑名单的玩家(仅管理员可用)",
-            "usages": ["/banlist"],
-            "permissions": ["tianyan_plugin.command.banlist"],
+            "usages": ["/tybanlist"],
+            "permissions": ["tianyan_plugin.command.tybanlist"],
         },
         "banid": {
             "description": "封禁设备ID(仅管理员可用)",
@@ -238,9 +239,14 @@ class TianyanPlugin(Plugin):
         },
         "tysgui": {
             "description": "使用图形窗口搜索关键词查询玩家&部分实体行为记录",
-            "usages": ["/tygui"],
+            "usages": ["/tysgui"],
             "permissions": ["tianyan_plugin.command.tysgui"],
         }
+        #"tyo": {
+        #    "description": "搜查玩家物品栏",
+        #    "usages": ["/tyo <msg:message>"],
+        #    "permissions": ["tianyan_plugin.command.tyo"],
+        #}
         #"test": {
         #    "description": "2",
         #    "usages": ["/test"],
@@ -253,15 +259,15 @@ class TianyanPlugin(Plugin):
             "description": "查询玩家&部分实体行为记录",
             "default": True, 
         },
-        "tianyan_plugin.command.ban": {
+        "tianyan_plugin.command.tyban": {
             "description": "ban一名玩家",
             "default": "op", 
         },
-        "tianyan_plugin.command.unban": {
+        "tianyan_plugin.command.tyunban": {
             "description": "从黑名单中移除玩家(仅管理员可用)",
             "default": "op", 
         },
-        "tianyan_plugin.command.banlist": {
+        "tianyan_plugin.command.tybanlist": {
             "description": "列出所有被封禁的玩家(仅管理员可用)",
             "default": "op", 
         },
@@ -290,7 +296,11 @@ class TianyanPlugin(Plugin):
             "default": True, 
         },
         "tianyan_plugin.command.tysgui": {
-            "description": "使用图形窗口搜索关键词查询玩家&部分实体行为记录",
+            "description": "使用图形窗口搜索关键词查询玩家&部分实体行为记录(仅管理员可用)",
+            "default": "op", 
+        },
+        "tianyan_plugin.command.tyo": {
+            "description": "搜查玩家物品栏",
             "default": "op", 
         },
         "tianyan_plugin.command.test": {
@@ -303,8 +313,9 @@ class TianyanPlugin(Plugin):
         self.logger.info("on_load is called!")
 
     def on_enable(self) -> None:
-        self.logger.info(f"{ColorFormat.YELLOW}天眼插件已启用  版本V1.1.1  配置文件位于plugins/tianyan_data/config.json")
+        self.logger.info(f"{ColorFormat.YELLOW}天眼插件已启用  版本V1.1.2  配置文件位于plugins/tianyan_data/config.json")
         self.logger.info(f"{ColorFormat.YELLOW}其余数据文件位于plugins/tianyan_data/")
+        self.logger.info(f"{ColorFormat.YELLOW}项目更新地址https://github.com/yuhangle/Endstone_TianyanPlugin")
         # 监听事件
         self.register_events(self)
 
@@ -316,8 +327,8 @@ class TianyanPlugin(Plugin):
                         
         if command.name == "tyhelp":
             sender.send_message(f"{ColorFormat.YELLOW}天眼命令使用方法")
-            sender.send_message(f"{ColorFormat.YELLOW}使用/ban 命令将一名玩家加入黑名单 格式 /ban 玩家名 理由(选填)")
-            sender.send_message(f"{ColorFormat.YELLOW}使用/unban 命令将一名玩家移出黑名单 格式 /unban 玩家名")
+            sender.send_message(f"{ColorFormat.YELLOW}使用/tyban 命令将一名玩家加入黑名单 格式 /tyban 玩家名 理由(选填)")
+            sender.send_message(f"{ColorFormat.YELLOW}使用/tyunban 命令将一名玩家移出黑名单 格式 /tyunban 玩家名")
             sender.send_message(f"{ColorFormat.YELLOW}使用/banlist 命令列出所有被加入黑名单的玩家名")
             sender.send_message(f"{ColorFormat.YELLOW}使用/banid 命令将一名玩家的设备加入黑名单(当目标玩家设备在线时添加黑名单无法直接踢出，请使用其它方法踢出该玩家) 格式 /banid 设备ID")
             sender.send_message(f"{ColorFormat.YELLOW}使用/unbanid 命令将一名玩家的设备移出黑名单 格式 /unban 设备ID")
@@ -351,6 +362,7 @@ class TianyanPlugin(Plugin):
                 r = float(args[2])
                 coordinates = positions
                 x, y, z = map(float, coordinates.split())
+                max_lines = 322
                 
                 # 获取当前时间
                 current_time = datetime.now()
@@ -403,16 +415,47 @@ class TianyanPlugin(Plugin):
                     if not isinstance(sender, Player):
                         self.logger.info(output_message)
                     else:
-                        self.server.get_player(sender.name).send_form(
-                            MessageForm(
-                                title=f'{ColorFormat.YELLOW}半径{r}格{times}小时内的查询记录',
-                                content=output_message,
-                                button1='确定',
-                                button2='取消'
-                            )
-                        )
+                        #self.server.get_player(sender.name).send_form(ActionForm(title=f'{ColorFormat.BLUE}§l§o半径{r}格{times}小时内的查询记录',content=output_message))
+                        lines = output_message.split("\n")
+                        if len(lines) > max_lines:
+                            page = 0
+                            segments = ["\n".join(lines[i:i + max_lines]) for i in range(0, len(lines), max_lines)]
+                            
+                            def show(sender):
+                                
+                                def next_button_click():
+                                    def on_click(sender):
+                                        nonlocal page  # 使用 nonlocal 声明 page 是外部作用域的变量
+                                        page += 1
+                                        if page >= len(segments):  # 判断是否还有下一页
+                                            page = 0  # 回到第一页
+                                        show(sender)
+                                    return on_click
+                                
+                                def up_button_click():
+                                    def on_click(sender):
+                                        nonlocal page  # 使用 nonlocal 声明 page 是外部作用域的变量
+                                        if page == 0:  # 如果在第一页，跳转到最后一页
+                                            page = len(segments) - 1
+                                        else:
+                                            page -= 1
+                                        show(sender)
+                                    return on_click
+                                
+                                next =  ActionForm.Button(text="下一页",on_click=next_button_click())
+                                up =  ActionForm.Button(text="上一页",on_click=up_button_click())
+                                    
+                            # 显示第一页窗口
+                                self.server.get_player(sender.name).send_form(
+                                    ActionForm(
+                                        title=f'{ColorFormat.BLUE}§l§o半径{r}格{times}小时内的查询记录-第{page + 1}页',
+                                        content=segments[page],
+                                        buttons=[up,next]
+                                        )
+                                    )
+                            show(sender)
                         
-        elif command.name == "ban":
+        elif command.name == "tyban":
             if len(args) == 0:
                 if not isinstance(sender, Player):
                     self.logger.info("格式错误")
@@ -471,7 +514,7 @@ class TianyanPlugin(Plugin):
                         sender.send_error_message(f"玩家 {playername} 已被加入黑名单，理由：{reason}")
                         sender.perform_command(f"kick {playername} 理由：{reason}")
         
-        elif command.name == "unban":
+        elif command.name == "tyunban":
             if len(args) == 0:
                 if not isinstance(sender, Player):
                     self.logger.info("格式错误")
@@ -514,7 +557,7 @@ class TianyanPlugin(Plugin):
                             self.logger.info(f"玩家 {playername} 不存在于黑名单中。")
                         else:
                             sender.send_error_message(f"玩家 {playername} 不存在于黑名单中。")
-        elif command.name == "banlist":
+        elif command.name == "tybanlist":
             # 检查文件是否存在
             if not os.path.exists(banlist):
                 if not isinstance(sender, Player):
@@ -676,7 +719,9 @@ class TianyanPlugin(Plugin):
                 searchtype = args[0]  # 搜索类型
                 searchobject = args[1]  # 搜索关键词
                 time = float(args[2])  # 搜索时间范围
-
+                # 最大行数限制
+                max_lines = 322
+                            
                 def search_db(keyword, time, stype):
                     """
                     从 SQLite 数据库中查询符合条件的记录。
@@ -733,14 +778,44 @@ class TianyanPlugin(Plugin):
                         if not isinstance(sender, Player):
                             self.logger.info(output_message)
                         else:
-                            self.server.get_player(sender.name).send_form(
-                                MessageForm(
-                                    title=f'{ColorFormat.YELLOW}关键词{keyword}在{time}小时内的查询记录',
-                                    content=output_message,
-                                    button1='确定',
-                                    button2='取消'
-                                )
-                            )
+                            lines = output_message.split("\n")
+                            if len(lines) > max_lines:
+                                page = 0
+                                segments = ["\n".join(lines[i:i + max_lines]) for i in range(0, len(lines), max_lines)]
+                                
+                                def show(sender):
+                                    
+                                    def next_button_click():
+                                        def on_click(sender):
+                                            nonlocal page  # 使用 nonlocal 声明 page 是外部作用域的变量
+                                            page += 1
+                                            if page >= len(segments):  # 判断是否还有下一页
+                                                page = 0  # 回到第一页
+                                            show(sender)
+                                        return on_click
+                                    
+                                    def up_button_click():
+                                        def on_click(sender):
+                                            nonlocal page  # 使用 nonlocal 声明 page 是外部作用域的变量
+                                            if page == 0:  # 如果在第一页，跳转到最后一页
+                                                page = len(segments) - 1
+                                            else:
+                                                page -= 1
+                                            show(sender)
+                                        return on_click
+                                    
+                                    next =  ActionForm.Button(text="下一页",on_click=next_button_click())
+                                    up =  ActionForm.Button(text="上一页",on_click=up_button_click())
+                                        
+                                # 显示第一页窗口
+                                    self.server.get_player(sender.name).send_form(
+                                        ActionForm(
+                                            title=f'{ColorFormat.BLUE}§l§o{keyword}在{time}小时内的记录-第{page + 1}页',
+                                            content=segments[page],
+                                            buttons=[up,next]
+                                            )
+                                        )
+                                show(sender)
 
                 # 玩家名搜索
                 if searchtype == "player":
@@ -763,7 +838,7 @@ class TianyanPlugin(Plugin):
                 sender.send_error_message("控制台无法使用该命令")
             else:
                 submit = lambda player, json_str: (
-                    self.logger.info(f"Received JSON: {json_str}"),  # 记录日志
+                    #self.logger.info(f"Received JSON: {json_str}"),  # 记录日志
                     player.perform_command(
                         f'ty {__import__("json").loads(json_str)[0]} {__import__("json").loads(json_str)[1]} {__import__("json").loads(json_str)[2]}'
                     )
@@ -785,9 +860,9 @@ class TianyanPlugin(Plugin):
                 sender.send_error_message("控制台无法使用该命令")
             else:
                 submit = lambda player, json_str: (
-                    self.logger.info(f"Received JSON: {json_str}"),  # 记录日志
+                    #self.logger.info(f"Received JSON: {json_str}"),  # 记录日志
                     player.perform_command(
-                        f'tys {['player','action','object'][__import__('json').loads(json_str)[0]]} {__import__("json").loads(json_str)[1]} {__import__("json").loads(json_str)[2]}'
+                        f'tys {['player','action','object'][__import__('json').loads(json_str)[0]]} "{__import__("json").loads(json_str)[1]}" {__import__("json").loads(json_str)[2]}'
                     )
                 )
                 self.server.get_player(sender.name).send_form(
@@ -801,6 +876,11 @@ class TianyanPlugin(Plugin):
                         on_submit=submit
                     )
                 )
+                
+        #elif command.name == "tyo":
+        #    playername = args[0]
+        #    ms = self.server.get_player(playername).inventory
+        #    sender.send_message(ms)
             
         elif command.name == "test":
             self.server.get_player(sender.name).send_form(
@@ -903,6 +983,128 @@ class TianyanPlugin(Plugin):
             world = event.block.location.dimension.name
             record_data(name, action, x, y, z, type, world)
             
+        if event.block.type == "minecraft:lever":
+            name = event.player.name
+            action = "交互"
+            x = event.block.x
+            y = event.block.y
+            z = event.block.z
+            type = "拉杆"
+            world = event.block.location.dimension.name
+            record_data(name, action, x, y, z, type, world)
+            
+        if event.block.type == "minecraft:unpowered_repeater":
+            name = event.player.name
+            action = "交互"
+            x = event.block.x
+            y = event.block.y
+            z = event.block.z
+            type = "未激活的红石中继器"
+            world = event.block.location.dimension.name
+            record_data(name, action, x, y, z, type, world)
+            
+        if event.block.type == "minecraft:unpowered_comparator":
+            name = event.player.name
+            action = "交互"
+            x = event.block.x
+            y = event.block.y
+            z = event.block.z
+            type = "未激活的红石比较器"
+            world = event.block.location.dimension.name
+            record_data(name, action, x, y, z, type, world)
+            
+        if event.block.type == "minecraft:powered_comparator":
+            name = event.player.name
+            action = "交互"
+            x = event.block.x
+            y = event.block.y
+            z = event.block.z
+            type = "激活的红石比较器"
+            world = event.block.location.dimension.name
+            record_data(name, action, x, y, z, type, world)
+            
+        if event.block.type == "minecraft:powered_repeater":
+            name = event.player.name
+            action = "交互"
+            x = event.block.x
+            y = event.block.y
+            z = event.block.z
+            type = "激活的红石中继器"
+            world = event.block.location.dimension.name
+            record_data(name, action, x, y, z, type, world)
+            
+        if event.block.type == "minecraft:dropper":
+            name = event.player.name
+            action = "交互"
+            x = event.block.x
+            y = event.block.y
+            z = event.block.z
+            type = "投掷器"
+            world = event.block.location.dimension.name
+            record_data(name, action, x, y, z, type, world)
+            
+        if event.block.type == "minecraft:jukebox":
+            name = event.player.name
+            action = "交互"
+            x = event.block.x
+            y = event.block.y
+            z = event.block.z
+            type = "唱片机"
+            world = event.block.location.dimension.name
+            record_data(name, action, x, y, z, type, world)
+            
+        if event.block.type == "minecraft:noteblock":
+            name = event.player.name
+            action = "交互"
+            x = event.block.x
+            y = event.block.y
+            z = event.block.z
+            type = "音符盒"
+            world = event.block.location.dimension.name
+            record_data(name, action, x, y, z, type, world)
+            
+        if event.block.type in [
+            "minecraft:wooden_button","minecraft:spruce_button","minecraft:birch_button","minecraft:jungle_button","minecraft:acacia_button",
+            "minecraft:dark_oak_button","minecraft:mangrove_button","minecraft:cherry_button","minecraft:bamboo_button","minecraft:pale_oak_button",
+            "minecraft:crimson_button","minecraft:warped_button","minecraft:stone_button","minecraft:polished_blackstone_button"
+            ]:
+            name = event.player.name
+            action = "交互"
+            x = event.block.x
+            y = event.block.y
+            z = event.block.z
+            type = "按钮"
+            world = event.block.location.dimension.name
+            record_data(name, action, x, y, z, type, world)
+            
+        if event.block.type in [
+            "minecraft:standing_sign","minecraft:spruce_standing_sign","minecraft:birch_standing_sign","minecraft:jungle_standing_sign","minecraft:acacia_standing_sign",
+            "minecraft:darkoak_standing_sign","minecraft:mangrove_standing_sign","minecraft:cherry_standing_sign","minecraft:pale_oak_standing_sign","minecraft:bamboo_standing_sign",
+            "minecraft:crimson_standing_sign","minecraft:warped_standing_sign","minecraft:wall_sign","minecraft:spruce_wall_sign","minecraft:birch_wall_sign","minecraft:jungle_wall_sign",
+            "minecraft:acacia_wall_sign","minecraft:darkoak_wall_sign","minecraft:mangrove_wall_sign","minecraft:cherry_wall_sign","minecraft:pale_oak_wall_sign","minecraft:bamboo_wall_sign","minecraft:crimson_wall_sign","minecraft:warped_wall_sign"
+            ]:
+            name = event.player.name
+            action = "交互"
+            x = event.block.x
+            y = event.block.y
+            z = event.block.z
+            type = "告示牌"
+            world = event.block.location.dimension.name
+            record_data(name, action, x, y, z, type, world)
+            
+        if event.block.type in [
+            "minecraft:oak_hanging_sign","minecraft:spruce_hanging_sign","minecraft:birch_hanging_sign","jungle_hanging_sign","acacia_hanging_sign",
+            "dark_oak_hanging_sign","mangrove_hanging_sign","cherry_hanging_sign","pale_oak_hanging_sign","bamboo_hanging_sign","crimson_hanging_sign","warped_hanging_sign"
+            ]:
+            name = event.player.name
+            action = "交互"
+            x = event.block.x
+            y = event.block.y
+            z = event.block.z
+            type = "悬挂式告示牌"
+            world = event.block.location.dimension.name
+            record_data(name, action, x, y, z, type, world)
+            
         if event.block.type in [
             "minecraft:anvil","minecraft:chipped_anvil","minecraft:damaged_anvil"
             ]:
@@ -911,7 +1113,7 @@ class TianyanPlugin(Plugin):
             x = event.block.x
             y = event.block.y
             z = event.block.z
-            type = "铁砧"
+            type = "告示牌"
             world = event.block.location.dimension.name
             record_data(name, action, x, y, z, type, world)
             
@@ -973,8 +1175,8 @@ class TianyanPlugin(Plugin):
             
         # 数量未定
         item_str = str(event.item)
-        pattern = r"ItemStack\(minecraft:bucket\s+x\s*\d+\)"
-        if re.match(pattern, item_str) and event.block.type in [
+        bucket_pattern = r"ItemStack\(minecraft:bucket\s+x\s*\d+\)"
+        if re.match(bucket_pattern, item_str) and event.block.type in [
             "minecraft:water","minecraft:lava","minecraft:powder_snow"]:# 桶对可被桶装的方块交互
             name = event.player.name
             blocktype = event.block.type
@@ -986,8 +1188,8 @@ class TianyanPlugin(Plugin):
             world = event.block.location.dimension.name
             record_data(name, action, x, y, z, type,world)
 
-        pattern = r"ItemStack\(minecraft:fire_charge\s+x\s*\d+\)"
-        if re.match(pattern, item_str):# 火焰弹
+        fire_pattern = r"ItemStack\(minecraft:fire_charge\s+x\s*\d+\)"
+        if re.match(fire_pattern, item_str):# 火焰弹
             name = event.player.name
             blocktype = event.block.type
             action = "交互"
@@ -1165,8 +1367,7 @@ class TianyanPlugin(Plugin):
                 type = event.actor.name
                 world = event.actor.location.dimension.name
                 record_data(name,action, x, y, z,type,world)   
-
-# 等待测试再写回  
+ 
 
 # 方块放置事件
     @event_handler
