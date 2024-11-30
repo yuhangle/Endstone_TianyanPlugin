@@ -313,7 +313,7 @@ class TianyanPlugin(Plugin):
         self.logger.info("on_load is called!")
 
     def on_enable(self) -> None:
-        self.logger.info(f"{ColorFormat.YELLOW}天眼插件已启用  版本V1.1.2  配置文件位于plugins/tianyan_data/config.json")
+        self.logger.info(f"{ColorFormat.YELLOW}天眼插件已启用  版本V1.1.2.1  配置文件位于plugins/tianyan_data/config.json")
         self.logger.info(f"{ColorFormat.YELLOW}其余数据文件位于plugins/tianyan_data/")
         self.logger.info(f"{ColorFormat.YELLOW}项目更新地址https://github.com/yuhangle/Endstone_TianyanPlugin")
         # 监听事件
@@ -454,6 +454,13 @@ class TianyanPlugin(Plugin):
                                         )
                                     )
                             show(sender)
+                        else:
+                            self.server.get_player(sender.name).send_form(
+                                    ActionForm(
+                                        title=f'{ColorFormat.BLUE}§l§o半径{r}格{times}小时内的查询记录',
+                                        content=output_message,
+                                        )
+                                    )
                         
         elif command.name == "tyban":
             if len(args) == 0:
@@ -816,6 +823,13 @@ class TianyanPlugin(Plugin):
                                             )
                                         )
                                 show(sender)
+                            else:
+                                self.server.get_player(sender.name).send_form(
+                                        ActionForm(
+                                            title=f'{ColorFormat.BLUE}§l§o{keyword}在{time}小时内的记录',
+                                            content=output_message,
+                                            )
+                                        )
 
                 # 玩家名搜索
                 if searchtype == "player":
