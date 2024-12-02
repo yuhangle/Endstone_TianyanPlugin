@@ -1,7 +1,7 @@
 from endstone.command import Command, CommandSender
 from endstone.plugin import Plugin
 from endstone import ColorFormat,Player
-from endstone.event import event_handler, BlockBreakEvent,PlayerInteractEvent,ActorKnockbackEvent,BlockPlaceEvent,PlayerCommandEvent,PlayerJoinEvent,PlayerChatEvent
+from endstone.event import event_handler, BlockBreakEvent,PlayerInteractEvent,ActorKnockbackEvent,BlockPlaceEvent,PlayerCommandEvent,PlayerJoinEvent,PlayerChatEvent,PlayerInteractActorEvent
 import os
 from datetime import datetime
 import json
@@ -15,6 +15,52 @@ import re
 import sqlite3
 from endstone.form import ModalForm,Dropdown,Label,ActionForm,TextInput,Slider,MessageForm
 from endstone.inventory import Inventory,PlayerInventory
+from endstone.block import BlockData
+
+# 兼容性代码，用于兼容1.1.3版本之前的数据
+def ensure_blockdata_column():
+    cursor.execute("PRAGMA table_info(interactions)")
+    columns = [column[1] for column in cursor.fetchall()]  # 获取所有列的名称
+    if 'blockdata' not in columns:
+        cursor.execute("ALTER TABLE interactions ADD COLUMN blockdata TEXT")
+        conn.commit()
+
+subdir = "plugins/tianyan_data"
+if not os.path.exists(subdir):
+    os.makedirs(subdir)
+banlist = os.path.join('plugins/tianyan_data/banlist.json')
+banidlist = os.path.join('plugins/tianyan_data/banidlist.json')
+config_file = os.path.join(subdir, 'config.json')
+
+default_config = {
+    '是否记录自然方块': True,
+    '是否记录人工方块': True,
+    '是否仅记录重要生物': True,
+}
+if not os.path.exists(config_file):
+    with open(config_file, 'w', encoding='utf-8') as f:
+        json.dump(default_config, f, ensure_ascii=False)
+# 读取配置文件
+with open(config_file, 'r', encoding='utf-8') as f:
+    config = json.load(f)
+    
+# 根据配置文件中的值设置变量
+natural = 1 if config.get('是否记录自然方块', False) else 0
+human = 1 if config.get('是否记录人工方块', False) else 0
+nbanimal = 1 if config.get('是否仅记录重要生物', False) else 0
+
+# 开启自然方块记录不开启人工方块记录
+if natural == 1 and human == 0:
+    blockrec = 1
+# 全开
+elif natural == 1 and human == 1:
+    blockrec = 2
+# 方块全关
+elif natural == 0 and human == 0:
+    blockrec = 3
+# 关闭自然方块记录开启人工方块记录
+elif natural == 0 and human == 1:
+    blockrec = 4
 
 # 初始化 SQLite 数据库
 db_file = "plugins/tianyan_data/tydata.db"
@@ -32,7 +78,8 @@ CREATE TABLE IF NOT EXISTS interactions (
     z INTEGER,
     type TEXT,
     world TEXT,
-    time TEXT
+    time TEXT,
+    blockdata TEXT
 )
 """)
 conn.commit()
@@ -41,13 +88,14 @@ chestrec_data = []
 breakrec_data = []
 animalrec_data = []
 placerec_data = []
+actorrec_data = []
 lock = threading.Lock()  # 用于线程安全的锁
 running_lock = threading.Lock()
 is_running = False
 
 # 写入数据到 SQLite
 def write_to_db():
-    global chestrec_data, breakrec_data, animalrec_data, placerec_data, is_running
+    global chestrec_data, breakrec_data, animalrec_data, placerec_data, actorrec_data, is_running
     with lock:
         with running_lock:
             if is_running:
@@ -91,19 +139,35 @@ def write_to_db():
         if breakrec_data:
             with conn:
                 for data in breakrec_data:
-                    cursor.execute("""
-                        INSERT INTO interactions (name, action, x, y, z, type, world, time)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                    """, (
-                        data['name'],
-                        data['action'],
-                        data['coordinates']['x'],
-                        data['coordinates']['y'],
-                        data['coordinates']['z'],
-                        data['type'],
-                        data['world'],
-                        data['time']
-                    ))
+                    if 'blockdata' in data:
+                        cursor.execute("""
+                            INSERT INTO interactions (name, action, x, y, z, type, world, time, blockdata)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """, (
+                            data['name'],
+                            data['action'],
+                            data['coordinates']['x'],
+                            data['coordinates']['y'],
+                            data['coordinates']['z'],
+                            data['type'],
+                            data['world'],
+                            data['time'],
+                            data['blockdata']
+                        ))
+                    else:
+                        cursor.execute("""
+                            INSERT INTO interactions (name, action, x, y, z, type, world, time)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                        """, (
+                            data['name'],
+                            data['action'],
+                            data['coordinates']['x'],
+                            data['coordinates']['y'],
+                            data['coordinates']['z'],
+                            data['type'],
+                            data['world'],
+                            data['time']
+                        ))
             breakrec_data.clear()
         if animalrec_data:
             with conn:
@@ -122,9 +186,27 @@ def write_to_db():
                         data['time']
                     ))
             animalrec_data.clear()
+        if actorrec_data:
+            with conn:
+                for data in actorrec_data:
+                    cursor.execute("""
+                        INSERT INTO interactions (name, action, x, y, z, type, world, time)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    """, (
+                        data['name'],
+                        data['action'],
+                        data['coordinates']['x'],
+                        data['coordinates']['y'],
+                        data['coordinates']['z'],
+                        data['type'],
+                        data['world'],
+                        data['time']
+                    ))
+            actorrec_data.clear()
     finally:
         with running_lock:
             is_running = False
+
 
 # 定期写入数据
 def periodic_write():
@@ -140,44 +222,6 @@ thread.start()
 # 关闭插件时写入文件
 def on_plugin_close():
     write_to_db()  # 确保在关闭时写入文件
-    
-    
-subdir = "plugins/tianyan_data"
-if not os.path.exists(subdir):
-    os.makedirs(subdir)
-banlist = os.path.join('plugins/tianyan_data/banlist.json')
-banidlist = os.path.join('plugins/tianyan_data/banidlist.json')
-config_file = os.path.join(subdir, 'config.json')
-
-default_config = {
-    '是否记录自然方块': False,
-    '是否记录人工方块': True,
-    '是否仅记录重要生物': True,
-}
-if not os.path.exists(config_file):
-    with open(config_file, 'w', encoding='utf-8') as f:
-        json.dump(default_config, f, ensure_ascii=False)
-# 读取配置文件
-with open(config_file, 'r', encoding='utf-8') as f:
-    config = json.load(f)
-    
-# 根据配置文件中的值设置变量
-natural = 1 if config.get('是否记录自然方块', False) else 0
-human = 1 if config.get('是否记录人工方块', False) else 0
-nbanimal = 1 if config.get('是否仅记录重要生物', False) else 0
-
-# 开启自然方块记录不开启人工方块记录
-if natural == 1 and human == 0:
-    blockrec = 1
-# 全开
-elif natural == 1 and human == 1:
-    blockrec = 2
-# 方块全关
-elif natural == 0 and human == 0:
-    blockrec = 3
-# 关闭自然方块记录开启人工方块记录
-elif natural == 0 and human == 1:
-    blockrec = 4
 
 
  
@@ -241,6 +285,11 @@ class TianyanPlugin(Plugin):
             "description": "使用图形窗口搜索关键词查询玩家&部分实体行为记录",
             "usages": ["/tysgui"],
             "permissions": ["tianyan_plugin.command.tysgui"],
+        },
+        "tyback": {
+            "description": "实验性功能 还原玩家直接方块放置破坏行为 --格式 /tyback 坐标 时间（单位：小时） 半径 实施行为的玩家名（可选）（仅管理员可用）",
+            "usages": ["/tyback [pos:pos] <float:float> <float:float> [msg: message]"],
+            "permissions": ["tianyan_plugin.command.tyback"],
         }
         #"tyo": {
         #    "description": "搜查玩家物品栏",
@@ -303,6 +352,10 @@ class TianyanPlugin(Plugin):
             "description": "搜查玩家物品栏",
             "default": "op", 
         },
+        "tianyan_plugin.command.tyback": {
+            "description": "设置回档",
+            "default": "op", 
+        },
         "tianyan_plugin.command.test": {
             "description": "1",
             "default": True, 
@@ -311,9 +364,10 @@ class TianyanPlugin(Plugin):
 
     def on_load(self) -> None:
         self.logger.info("on_load is called!")
+        ensure_blockdata_column()
 
     def on_enable(self) -> None:
-        self.logger.info(f"{ColorFormat.YELLOW}天眼插件已启用  版本V1.1.2.1  配置文件位于plugins/tianyan_data/config.json")
+        self.logger.info(f"{ColorFormat.YELLOW}天眼插件已启用  版本V1.1.3  配置文件位于plugins/tianyan_data/config.json")
         self.logger.info(f"{ColorFormat.YELLOW}其余数据文件位于plugins/tianyan_data/")
         self.logger.info(f"{ColorFormat.YELLOW}项目更新地址https://github.com/yuhangle/Endstone_TianyanPlugin")
         # 监听事件
@@ -338,6 +392,7 @@ class TianyanPlugin(Plugin):
             sender.send_message(f"{ColorFormat.YELLOW}使用/tygui 命令使用图形窗口查询玩家&部分实体行为记录")
             sender.send_message(f"{ColorFormat.YELLOW}使用/tysgui 命令使用图形窗口搜索关键词查询玩家&部分实体行为记录 (仅管理员可用)")
             sender.send_message(f"{ColorFormat.YELLOW}tys命令参数解析 搜索类型:player action object(玩家或行为实施者 行为 被实施行为的对象) 搜索关键词:玩家名或行为实施者名 交互 破坏 攻击 放置 被实施行为的对象名")
+            sender.send_message(f"{ColorFormat.YELLOW}实验性功能 使用/tyback 命令还原玩家直接方块放置破坏行为 格式 /tyback 坐标 时间（单位：小时） 半径 实施行为的玩家名（可选）（仅管理员可用）")
             
         elif command.name == "ty":
             if len(args) <= 2:
@@ -896,6 +951,119 @@ class TianyanPlugin(Plugin):
         #    ms = self.server.get_player(playername).inventory
         #    sender.send_message(ms)
             
+        elif command.name == "tyback":
+            if len(args) < 3:
+                if not isinstance(sender, Player):
+                    self.logger.info(f"{ColorFormat.RED}命令格式错误！请检查命令是否正确；如果使用~ ~ ~，请直接输入坐标")
+                else:
+                    sender.send_error_message("命令格式错误！请检查命令是否正确；如果使用~ ~ ~，请直接输入坐标")
+                return True
+            elif "~" in args[0]:
+                if not isinstance(sender, Player):
+                    self.logger.info(f"{ColorFormat.RED}命令格式错误！请检查命令是否正确；如果使用~ ~ ~，请直接输入坐标")
+                else:
+                    sender.send_error_message("命令格式错误！请检查命令是否正确；如果使用~ ~ ~，请直接输入坐标")
+            elif float(args[2]) > 100:
+                if not isinstance(sender, Player):
+                    self.logger.info(f"{ColorFormat.RED}半径最大值为100 !")
+                else:
+                    sender.send_error_message("半径最大值为100 !")
+            else:
+                positions = args[0]
+                times = float(args[1])
+                r = float(args[2])
+                coordinates = positions
+                x, y, z = map(float, coordinates.split())
+                max_lines = 322
+                exe_player_dim = self.server.get_player(sender.name).location.dimension.name
+                
+                # 获取当前时间
+                current_time = datetime.now()
+                time_threshold = current_time - timedelta(hours=times)
+                
+                # 对单独玩家行为回档
+                if len(args) == 4:
+                    do_player_name = args[3]
+                
+                    # 查询数据库
+                    results = []
+                    query = """
+                    SELECT name, action, x, y, z, type, world, time, blockdata FROM interactions
+                    WHERE (x - ?)*(x - ?) + (y - ?)*(y - ?) + (z - ?)*(z - ?) <= ?
+                    AND time >= ?
+                    AND world = ?
+                    AND name = ?
+                    """
+                    radius_squared = r ** 2
+                    with conn:
+                        cursor.execute(query, (x, x, y, y, z, z, radius_squared, time_threshold.isoformat(),exe_player_dim,do_player_name))
+                        rows = cursor.fetchall()
+                        for row in rows:
+                            results.append({
+                                'name': row[0],
+                                'action': row[1],
+                                'coordinates': {'x': row[2], 'y': row[3], 'z': row[4]},
+                                'type': row[5],
+                                'world': row[6],
+                                'time': row[7],
+                                'blockdata': row[8] if row[8] is not None else ''  # 处理blockdata字段
+                            })
+                # 没有玩家信息就不加
+                else:
+                    # 查询数据库
+                    results = []
+                    query = """
+                    SELECT name, action, x, y, z, type, world, time, blockdata FROM interactions
+                    WHERE (x - ?)*(x - ?) + (y - ?)*(y - ?) + (z - ?)*(z - ?) <= ?
+                    AND time >= ?
+                    AND world = ?
+                    """
+                    radius_squared = r ** 2
+                    with conn:
+                        cursor.execute(query, (x, x, y, y, z, z, radius_squared, time_threshold.isoformat(),exe_player_dim))
+                        rows = cursor.fetchall()
+                        for row in rows:
+                            results.append({
+                                'name': row[0],
+                                'action': row[1],
+                                'coordinates': {'x': row[2], 'y': row[3], 'z': row[4]},
+                                'type': row[5],
+                                'world': row[6],
+                                'time': row[7],
+                                'blockdata': row[8] if row[8] is not None else None  # 处理blockdata字段
+                            })
+                
+                # 处理结果
+                if not results:
+                    if not isinstance(sender, Player):
+                        self.logger.info(f"{ColorFormat.RED}请勿使用控制台")
+                    else:
+                        sender.send_message(f"{ColorFormat.YELLOW}无记录数据")
+                else:
+                    if not isinstance(sender, Player):
+                        self.logger.info(f"{ColorFormat.RED}请勿使用控制台")
+                    else:
+                        sender.send_message(f"{ColorFormat.YELLOW}开始还原{r}格{times}小时内的方块")
+                        
+                        for item in results:
+                            
+                            turnaction = item['action']
+                            if turnaction == '破坏':
+                                coordinates = item['coordinates']
+                                type = item['type']
+                                x,y,z = coordinates['x'],coordinates['y'],coordinates['z']
+                                pos = f'{x} {y} {z}'
+                                blockdata = item['blockdata']
+                                sender.perform_command(f'setblock {pos} {type}{blockdata}')
+                                #action = '放置'
+                            elif turnaction == '放置':
+                                coordinates = item['coordinates']
+                                x,y,z = coordinates['x'],coordinates['y'],coordinates['z']
+                                pos = f'{x} {y} {z}'
+                                sender.perform_command(f'setblock {pos} air')
+                                #action = '破坏'
+                        
+        
         elif command.name == "test":
             self.server.get_player(sender.name).send_form(
                 MessageForm(
@@ -1239,7 +1407,7 @@ class TianyanPlugin(Plugin):
 # 方块破坏事件
     @event_handler
     def blockbreak(self, event: BlockBreakEvent):
-        def record_data(name, action, x, y, z,type,world):
+        def record_data(name, action, x, y, z,type,world,blockdata):
             # """记录玩家的交互行为到data.json文件中"""
             interaction = {
                 'name': name,
@@ -1247,7 +1415,8 @@ class TianyanPlugin(Plugin):
                 'coordinates': {'x': x, 'y': y, 'z': z},
                 'time': datetime.now().isoformat(),  # 记录当前时间
                 'type': type,
-                'world': world
+                'world': world,
+                'blockdata': blockdata
             }  
             with lock:  # 确保线程安全
                 breakrec_data.append(interaction)                  
@@ -1287,7 +1456,9 @@ class TianyanPlugin(Plugin):
                 z = event.block.z
                 type = event.block.type
                 world = event.block.location.dimension.name
-                record_data(name, action, x, y, z,type,world)
+                turnblock = event.block.data.block_states
+                blockdata = f" [{', '.join([f'"{key}"={value}' if isinstance(value, (bool, int, float)) else f'"{key}"="{value}"' for key, value in turnblock.items()])}]"
+                record_data(name, action, x, y, z,type,world,blockdata)
 
         # 全开
         if blockrec == 2:
@@ -1299,7 +1470,9 @@ class TianyanPlugin(Plugin):
                 z = event.block.z
                 type = event.block.type
                 world = event.block.location.dimension.name
-                record_data(name, action, x, y, z,type,world)
+                turnblock = event.block.data.block_states
+                blockdata = f" [{', '.join([f'"{key}"={value}' if isinstance(value, (bool, int, float)) else f'"{key}"="{value}"' for key, value in turnblock.items()])}]"
+                record_data(name, action, x, y, z,type,world,blockdata)
                 
         # 仅人造方块记录
         if blockrec == 4:
@@ -1337,7 +1510,9 @@ class TianyanPlugin(Plugin):
                 z = event.block.z
                 type = event.block.type
                 world = event.block.location.dimension.name
-                record_data(name, action, x, y, z,type,world)
+                turnblock = event.block.data.block_states
+                blockdata = f" [{', '.join([f'"{key}"={value}' if isinstance(value, (bool, int, float)) else f'"{key}"="{value}"' for key, value in turnblock.items()])}]"
+                record_data(name, action, x, y, z,type,world,blockdata)
                 
 # 生物被打事件
     @event_handler
@@ -1408,19 +1583,50 @@ class TianyanPlugin(Plugin):
         world = event.block_placed_state.location.dimension.name
         record_data(name,action, x, y, z,type,world)
         
+        
+    # 与生物交互事件
+    @event_handler
+    def actorjh(self, event: PlayerInteractActorEvent):
+        def record_data(name, action, x, y, z,type,world):
+            # """记录玩家的交互行为到data.json文件中"""
+            interaction = {
+                'name': name,
+                'action': action,
+                'coordinates': {'x': x, 'y': y, 'z': z},
+                'time': datetime.now().isoformat(),  # 记录当前时间
+                'type': type,
+                'world': world
+            }  
+            with lock:  # 确保线程安全
+                actorrec_data.append(interaction)                  
+        #threading.Thread(target=write_to_file).start()
+        name = event.player.name
+        action = "交互"
+        x = event.actor.location.block_x
+        y = event.actor.location.block_y
+        z = event.actor.location.block_z
+        type = event.actor.name
+        world = event.actor.location.dimension.name
+        record_data(name,action, x, y, z,type,world)
+        
 
-# 用于调试的方块交互事件
+# 用于调试的事件
 #    @event_handler
 #    def blocktest(self,event: PlayerInteractEvent ):  
 #        player = event.player
 #        inv = player.inventory
 #        self.server.broadcast_message(ColorFormat.YELLOW + f"{event.player.name}" + "位置" f"{event.block.x}"" " + f"{event.block.y}"" " + f"{event.block.z}" + f"{event.block.type}" + f"{event.block.location.dimension.name}" + f"{event.item}" + f"{inv}")
-# 用于调试的生物事件
+# 用于调试的事件
 #    @event_handler
-#    def test(self,event: BlockPlaceEvent): 
+#    def test(self,event: BlockBreakEvent): 
 #        current_tps = self.server.current_tps
 #        self.server.broadcast_message(f"{current_tps}") 
-#        self.server.broadcast_message(ColorFormat.YELLOW + f"{Player.inventory}")
+#        turnblock = event.block.data.block_states
+#        blockdata = f" [{', '.join([f'{key}={value}' if isinstance(value, (bool, int, float)) else f'"{key}"="{value}"' for key, value in turnblock.items()])}]"
+#        turnblock = event.block.data.block_states
+#        blockdata = ', '.join([f'"{key}"={value}' if isinstance(value, (bool, int, float)) else f'"{key}"="{value}"' for key, value in turnblock.items()])
+#        blockdata = f" [{', '.join([f'"{key}"={value}' if isinstance(value, (bool, int, float)) else f'"{key}"="{value}"' for key, value in turnblock.items()])}]"
+#        self.server.broadcast_message(ColorFormat.YELLOW + f"{event.block.type} blockdata: {blockdata}")
 # 用于调试的命令发送事件
 #    @event_handler
 #    def test(self,event: PlayerCommandEvent):  
