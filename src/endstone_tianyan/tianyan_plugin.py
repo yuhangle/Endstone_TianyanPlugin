@@ -176,7 +176,8 @@ default_lang = {
     '的物品栏': '的物品栏',
     '搜查玩家物品栏 --格式 /tyo 玩家名': '搜查玩家物品栏 --格式 /tyo 玩家名',
     '使用 /tyo 命令查看玩家物品栏 格式 /tyo 玩家名': '使用 /tyo 命令查看玩家物品栏 格式 /tyo 玩家名',
-    '命令错误，请检查参数及玩家是否在线': '命令错误，请检查参数及玩家是否在线'
+    '命令错误，请检查参数及玩家是否在线': '命令错误，请检查参数及玩家是否在线',
+    '此玩家的物品栏里没有东西': '此玩家的物品栏里没有东西'
 }
 
 # 创建默认语言文件
@@ -243,9 +244,9 @@ with open(config_file, 'r', encoding='utf-8') as f:
 
     
 # 根据配置文件中的值设置变量
-natural = 1 if config.get('是否记录自然方块', False) else 0
-human = 1 if config.get('是否记录人工方块', False) else 0
-nbanimal = 1 if config.get('是否仅记录重要生物', False) else 0
+natural = 1 if config.get(lang['是否记录自然方块'], True) else 0
+human = 1 if config.get(lang['是否记录人工方块'], True) else 0
+nbanimal = 1 if config.get(lang['是否仅记录重要生物'], True) else 0
 
 # 开启自然方块记录不开启人工方块记录
 if natural == 1 and human == 0:
@@ -1100,9 +1101,18 @@ class TianyanPlugin(Plugin):
                     if not isinstance(sender, Player):
                         self.server.logger.info(f"{ColorFormat.YELLOW}\n{output_item}")
                     else:
-                        self.server.get_player(sender.name).send_form(ActionForm(title=f"§1{playername}{lang["的物品栏"]}",content=output_item))
+                        if output_item == "":
+                            if not isinstance(sender, Player):
+                                self.logger.info(f"{ColorFormat.RED}{lang["此玩家的物品栏里没有东西"]}")
+                            else:
+                                sender.send_error_message(f"{ColorFormat.RED}{lang["此玩家的物品栏里没有东西"]}")
+                        else:
+                            self.server.get_player(sender.name).send_form(ActionForm(title=f"§1{playername}{lang["的物品栏"]}",content=output_item))
                 except:
-                    self.server.broadcast_message(f"{ColorFormat.RED}{lang["命令错误，请检查参数及玩家是否在线"]}")
+                    if not isinstance(sender, Player):
+                        self.logger.info(f"{ColorFormat.RED}{lang["命令错误，请检查参数及玩家是否在线"]}")
+                    else:
+                        sender.send_error_message(f"{ColorFormat.RED}{lang["命令错误，请检查参数及玩家是否在线"]}")
             else:
                 pass
             
