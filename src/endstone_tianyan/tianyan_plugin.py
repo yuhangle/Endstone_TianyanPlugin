@@ -35,6 +35,7 @@ lang_file = os.path.join(subdir, 'lang.json')
 # 语言文件操作
 
 default_lang = {
+    'lang-version': '1.1.4',
     'language': "中文",
     '是否记录自然方块': '是否记录自然方块',
     '是否记录人工方块': '是否记录人工方块',
@@ -168,13 +169,21 @@ default_lang = {
     '试图加入服务器，已被踢出': '试图加入服务器，已被踢出',
     '设备ID': '设备ID',
     '系统名称': '系统名称',
-    '加入了游戏': '加入了游戏'
+    '加入了游戏': '加入了游戏',
+    '物品槽位': '物品槽位',
+    '物品名称': '物品名称',
+    '数量': '数量',
+    '的物品栏': '的物品栏',
+    '搜查玩家物品栏 --格式 /tyo 玩家名': '搜查玩家物品栏 --格式 /tyo 玩家名',
+    '使用 /tyo 命令查看玩家物品栏 格式 /tyo 玩家名': '使用 /tyo 命令查看玩家物品栏 格式 /tyo 玩家名',
+    '命令错误，请检查参数及玩家是否在线': '命令错误，请检查参数及玩家是否在线'
 }
 
 # 创建默认语言文件
 if not os.path.exists(lang_file):
     with open(lang_file, 'w', encoding='utf-8') as f:
         json.dump(default_lang, f, ensure_ascii=False, indent=4)
+    print(f"{datetime.now().isoformat()}     [Tianyan] 未检测到语言文件，已创建默认语言文件 No language file was detected, and a default language file has been created.")
    
 
 # 读取语言文件
@@ -186,9 +195,30 @@ default_key = set(default_lang.keys())
 lang_key = set(lang.keys())
 if lang_key == default_key:
     print(f"{datetime.now().isoformat()}     [Tianyan] 语言文件检测正常 Language file detection is normal")
+# 语言文件不完整
 else:
-    print(f"{datetime.now().isoformat()}     [Tianyan] 语言文件部分缺失! 使用默认语言文件 Part of the language file is missing! Using the default language file")
-    lang = default_lang
+    # 语言版本信息存在时
+    lang_version = lang.get("lang-version", None)
+    if lang_version:
+        # 语言版本相同 但是部分语言缺失
+        if lang["lang-version"] == default_lang["lang-version"]:
+            print(f"{datetime.now().isoformat()}     [Tianyan] 天眼语言文件部分缺失! 使用默认语言文件 Part of the language file is missing! Using the default language file")
+            lang = default_lang
+        elif lang["language"] == "中文":
+            # 更新默认语言文件
+            with open(lang_file, 'w', encoding='utf-8') as f:
+                json.dump(default_lang, f, ensure_ascii=False, indent=4)
+            print(f"{datetime.now().isoformat()}     [Tianyan] 天眼语言版本不适配! 已为您自动更新语言文件!")
+            lang = default_lang
+        # 语言版本不同 提示更新语言文件
+        else:
+            print(f"{datetime.now().isoformat()}     [Tianyan] 天眼语言版本不适配! 使用默认语言文件! 请下载新的语言文件! The language version is incompatible! Using the default language file! Please download the new language file!")
+            lang = default_lang
+    else:
+        # 无语言版本 信息也缺失 使用默认语言
+        print(f"{datetime.now().isoformat()}     [Tianyan] 天眼语言文件部分缺失! 使用默认语言文件! 请下载新的语言文件! Part of the language file is missing! Using the default language file! Please download the new language file!")
+        lang = default_lang
+    
 
     
 # 根据语言文件中的语言选项加载语言文件 
@@ -391,12 +421,12 @@ class TianyanPlugin(Plugin):
             "description": lang["实验性功能 还原玩家直接方块放置破坏行为 --格式 /tyback 坐标 时间（单位：小时） 半径 实施行为的玩家名（可选）（仅管理员可用）"],
             "usages": ["/tyback [pos:pos] <float:float> <float:float> [msg: message]"],
             "permissions": ["tianyan_plugin.command.tyback"],
+        },
+        "tyo": {
+            "description": lang["搜查玩家物品栏 --格式 /tyo 玩家名"],
+            "usages": ["/tyo <msg:message>"],
+            "permissions": ["tianyan_plugin.command.tyo"],
         }
-        #"tyo": {
-        #    "description": "搜查玩家物品栏",
-        #    "usages": ["/tyo <msg:message>"],
-        #    "permissions": ["tianyan_plugin.command.tyo"],
-        #}
         #"test": {
         #    "description": "2",
         #    "usages": ["/test"],
@@ -468,7 +498,7 @@ class TianyanPlugin(Plugin):
         ensure_blockdata_column()
 
     def on_enable(self) -> None:
-        self.logger.info(f"{ColorFormat.YELLOW}{lang["天眼插件已启用  版本"]} V1.1.3.2测试版")
+        self.logger.info(f"{ColorFormat.YELLOW}{lang["天眼插件已启用  版本"]} V1.1.4")
         self.logger.info(f"{ColorFormat.YELLOW}{lang["配置文件位于"]}plugins/tianyan_data/config.json")
         self.logger.info(f"{ColorFormat.YELLOW}{lang["插件语言设定为"]} {language}")
         self.logger.info(f"{ColorFormat.YELLOW}{lang["其余数据文件位于"]} plugins/tianyan_data/")
@@ -495,6 +525,7 @@ class TianyanPlugin(Plugin):
             sender.send_message(f"{ColorFormat.YELLOW}{lang["使用/tygui 命令使用图形窗口查询玩家&部分实体行为记录"]}")
             sender.send_message(f"{ColorFormat.YELLOW}{lang["使用/tysgui 命令使用图形窗口搜索关键词查询玩家&部分实体行为记录 (仅管理员可用)"]}")
             sender.send_message(f"{ColorFormat.YELLOW}{lang["tys命令参数解析 搜索类型:player action object(玩家或行为实施者 行为 被实施行为的对象) 搜索关键词:玩家名或行为实施者名 交互 破坏 攻击 放置 被实施行为的对象名"]}")
+            sender.send_message(f"{ColorFormat.YELLOW}{lang["使用 /tyo 命令查看玩家物品栏 格式 /tyo 玩家名"]}")
             sender.send_message(f"{ColorFormat.YELLOW}{lang["实验性功能 使用/tyback 命令还原玩家直接方块放置破坏行为 格式 /tyback 坐标 时间（单位：小时） 半径 实施行为的玩家名（可选）（仅管理员可用）"]}")
             
         elif command.name == "ty":
@@ -1049,11 +1080,31 @@ class TianyanPlugin(Plugin):
                     )
                 )
                 
-        #elif command.name == "tyo":
-        #    playername = args[0]
-        #    ms = self.server.get_player(playername).inventory
-        #    print(str(self.server.get_player(sender.name)).inventory.get_item(0))
-        #    sender.send_message(ms)
+        elif command.name == "tyo":
+            if len(args) == 1:
+                try:
+                    playername = args[0]
+                    all_item = []
+                    for item_num in range(36):
+                        item = self.server.get_player(playername).inventory.get_item(item_num)
+                        if item:  # 如果槽位不为空
+                            item_name = item.type
+                            item_amount = item.amount
+                            all_item.append({'num': item_num, 'item': item_name, 'amount': item_amount})
+
+                    # 打印所有物品信息
+                    output_item = ""
+                    for item_info in all_item:
+                        message = f"{ColorFormat.YELLOW}{lang["物品槽位"]}:{item_info['num']} \n {lang["物品名称"]}:{item_info['item']} \n {lang["数量"]}:{item_info['amount']}\n"
+                        output_item += message + "-" * 20 + "\n"  # 将单条记录添加到总输出中
+                    if not isinstance(sender, Player):
+                        self.server.logger.info(f"{ColorFormat.YELLOW}\n{output_item}")
+                    else:
+                        self.server.get_player(sender.name).send_form(ActionForm(title=f"§1{playername}{lang["的物品栏"]}",content=output_item))
+                except:
+                    self.server.broadcast_message(f"{ColorFormat.RED}{lang["命令错误，请检查参数及玩家是否在线"]}")
+            else:
+                pass
             
         elif command.name == "tyback":
             if len(args) < 3:
@@ -1857,7 +1908,7 @@ class TianyanPlugin(Plugin):
         #pip = player.address.hostname
         pid = getattr(player, 'device_id', '未知设备ID')
         pos = getattr(player, 'device_os', '未知系统')
-        self.logger.info(f"{ColorFormat.YELLOW}玩家{pname}({lang["设备ID"]}:{pid} {lang["系统名称"]}:{pos})加入了游戏")
+        self.logger.info(f"{ColorFormat.YELLOW}{lang["玩家"]} {pname}({lang["设备ID"]}:{pid} {lang["系统名称"]}:{pos}) {lang["加入了游戏"]}")
         
             
         
