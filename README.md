@@ -1,5 +1,5 @@
+[**English**](README_eng.md)
 一款适用于Endstone插件加载器的玩家行为记录查询插件。
-
 
 # 功能介绍
 
@@ -58,6 +58,8 @@
 
 插件默认配置仅记录部分重要生物的受击事件。如果需要记录全部生物的受击事件，请将“是否仅记录重要生物”后的“false”修改为“true”。
 
+插件默认使用中文，可以通过修改天眼插件数据目录下的lang.json文件来使用翻译。插件提供ChatGPT与人工润色的英文语言配置文件，可在release处下载。
+
 ## 插件命令使用方法
 
 天眼命令使用方法
@@ -88,6 +90,12 @@
 /tysgui
 ```
 
+使用 /tyo 命令查看玩家物品栏 格式:
+
+```shell
+/tyo 玩家名
+```
+
 使用/tyban 命令将一名玩家加入黑名单 格式:
 
 ```shell
@@ -100,7 +108,7 @@
 /tyunban 玩家名
 ```
 
-使用/banlist命令列出所有被加入黑名单的玩家名
+使用/tybanlist命令列出所有被加入黑名单的玩家名
 
 ```shell
 /tybanlist 
@@ -130,11 +138,12 @@
 /tyback 坐标 时间（单位：小时） 半径 实施行为的玩家名（可选）
 ```
 
-#修改&打包
+## 修改&打包
 
 确保您的python环境中安装了endstone和pipx
 
 克隆代码
+
 ```shell
 git clone https://github.com/yuhangle/endstone_TianyanPlugin.git
 ```
@@ -146,6 +155,7 @@ cd endstone_TianyanPlugin
 ```
 
 打包插件
+
 ```shell
 pipx run build --wheel
 ```
