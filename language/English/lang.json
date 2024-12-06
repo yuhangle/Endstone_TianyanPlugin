@@ -1,4 +1,5 @@
 {
+    "lang-version": "1.1.4",
     "language": "English",
     "是否记录自然方块": "Record natural blocks",
     "是否记录人工方块": "Record artificial blocks",
@@ -130,5 +131,13 @@
     "被封禁的设备ID": "Banned device ID",
     "试图加入服务器，已被踢出": "Attempted to join the server, kicked out",
     "系统名称": "System name",
-    "加入了游戏": "joined the game"
+    "加入了游戏": "joined the game",
+    "物品槽位": "Item Slot",
+    "物品名称": "Item Name",
+    "数量": "Quantity",
+    "的物品栏": "'s Inventory",
+    "搜查玩家物品栏 --格式 /tyo 玩家名": "Search player inventory -- format /tyo playername",
+    "使用 /tyo 命令查看玩家物品栏 格式 /tyo 玩家名": "Use the /tyo command to view a player's inventory -- format: /tyo playername",
+    "命令错误，请检查参数及玩家是否在线": "Error: Command error. Please check the parameters and ensure the player is online.",
+    "此玩家的物品栏里没有东西": "This player's inventory is empty."
 }
