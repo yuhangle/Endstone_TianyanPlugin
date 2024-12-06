@@ -56,11 +56,11 @@ Download the latest plugin version from the release section and place it in the 
 After running the plugin, a `tianyan_data` folder will be created in the `plugins` directory. Inside, there is a configuration file named `config.json` with the following default configuration:
 
 ```json
-{"log_natural_blocks": true, "log_artificial_blocks": true, "log_only_important_entities": true}
+{"Record natural blocks": true, "Record artificial blocks": true, "Record only significant entities": true}
 ```
 
-- To log all entity hit events instead of just important ones, change `"log_only_important_entities": true` to `"false"`.  
-- The plugin defaults to Chinese but supports English via a language configuration file (`lang.json`). A pre-translated English configuration file is available for download in the release section.
+- To log all entity hit events instead of just important ones, change `"Record only significant entities": true` to `"false"`.  
+- The plugin defaults to Chinese but supports English via a language configuration file (`lang.json`). A pre-translated English configuration file made by ChatGPT is available for download in the release section.
 
 ## Plugin Command Usage
 
