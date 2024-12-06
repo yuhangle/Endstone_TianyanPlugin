@@ -41,6 +41,16 @@ The Tianyan plugin displays player system names and device IDs when they join th
 - **Ban Players by Device ID:** Blocks any player using a banned device (with the same device ID) from joining the server.  
 - **Anti-Spam:** Automatically bans players who send excessive messages (more than 6 within 10 seconds) or commands (more than 12 within 10 seconds). An administrator must be contacted to lift the ban.
 
+## Additional Features
+
+### Restore Player-Triggered Block Destruction and Placement
+
+The Tianyan plugin supports restoring blocks destroyed or placed directly by players. This feature uses the `setblock` command to restore blocks based on data from the database. However, it cannot recover specific details such as the contents of chests. As an experimental feature, full restoration cannot be guaranteed.
+
+### View Player Inventory
+
+The Tianyan plugin allows viewing the items in a player's inventory.
+
 # Installation, Configuration, and Usage
 
 ## Installing Endstone
