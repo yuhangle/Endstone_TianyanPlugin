@@ -95,7 +95,7 @@ Use `/tys` to search for specific keywords. Format:
 ```
 
 - **Search types:** `player`, `action`, `object` (e.g., player name, action type, or target object).  
-- **Keywords:** Examples include player names, action types (`interact`, `destroy`, `attack`, `place`), or object names (in-game IDs or Chinese terms for certain items like chests, hoppers, etc.).
+- **Keywords:** Examples include player names, action types (`Interact`, `Destroy`, `Attack`, `Place`), or object names (in-game IDs or ohter name in lang.json).
 
 Use `/tysgui` to perform keyword searches with a graphical menu. Format:
 
