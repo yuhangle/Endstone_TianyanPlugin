@@ -298,6 +298,8 @@ is_running = False
 
 # 写入数据的方法
 def insert_records(data_list, cursor, has_blockdata=False):
+    with sqlite3.connect(db_file) as conn: 
+        cursor = conn.cursor()
     with conn:
         for data in data_list:
             if has_blockdata and 'blockdata' in data:
@@ -499,7 +501,7 @@ class TianyanPlugin(Plugin):
         ensure_blockdata_column()
 
     def on_enable(self) -> None:
-        self.logger.info(f"{ColorFormat.YELLOW}{lang["天眼插件已启用  版本"]} V1.1.4")
+        self.logger.info(f"{ColorFormat.YELLOW}{lang["天眼插件已启用  版本"]} V1.1.4.1")
         self.logger.info(f"{ColorFormat.YELLOW}{lang["配置文件位于"]}plugins/tianyan_data/config.json")
         self.logger.info(f"{ColorFormat.YELLOW}{lang["插件语言设定为"]} {language}")
         self.logger.info(f"{ColorFormat.YELLOW}{lang["其余数据文件位于"]} plugins/tianyan_data/")
@@ -1007,7 +1009,7 @@ class TianyanPlugin(Plugin):
                                 # 显示第一页窗口
                                     self.server.get_player(sender.name).send_form(
                                         ActionForm(
-                                            title=f'{ColorFormat.BLUE}§l§o{keyword}{lang["在"]}{time}{lang["小时内的记录-第"]}{page + 1}{lang["页"]}',
+                                            title=f'{ColorFormat.BLUE}§l§o{keyword} {lang["在"]} {time} {lang["小时内的记录-第"]} {page + 1} {lang["页"]}',
                                             content=segments[page],
                                             buttons=[up,next]
                                             )
@@ -1016,7 +1018,7 @@ class TianyanPlugin(Plugin):
                             else:
                                 self.server.get_player(sender.name).send_form(
                                         ActionForm(
-                                            title=f'{ColorFormat.BLUE}§l§o{keyword}{lang["在"]}{time}{lang["小时内的记录"]}',
+                                            title=f'{ColorFormat.BLUE}§l§o{keyword} {lang["在"]} {time} {lang["小时内的记录"]}',
                                             content=output_message,
                                             )
                                         )
@@ -1213,7 +1215,7 @@ class TianyanPlugin(Plugin):
                         for item in results:
                             
                             turnaction = item['action']
-                            if turnaction == '破坏':
+                            if turnaction == lang['破坏']:
                                 coordinates = item['coordinates']
                                 type = item['type']
                                 x,y,z = coordinates['x'],coordinates['y'],coordinates['z']
@@ -1221,7 +1223,7 @@ class TianyanPlugin(Plugin):
                                 blockdata = item['blockdata']
                                 sender.perform_command(f'setblock {pos} {type}{blockdata}')
                                 #action = '放置'
-                            elif turnaction == '放置':
+                            elif turnaction == lang['放置']:
                                 coordinates = item['coordinates']
                                 x,y,z = coordinates['x'],coordinates['y'],coordinates['z']
                                 pos = f'{x} {y} {z}'
