@@ -66,8 +66,16 @@ Download the latest plugin version from the release section and place it in the 
 After running the plugin, a `tianyan_data` folder will be created in the `plugins` directory. Inside, there is a configuration file named `config.json` with the following default configuration:
 
 ```json
-{"Record natural blocks": true, "Record artificial blocks": true, "Record only significant entities": true}
+{
+    "record_nature_block": true,
+    "record_human_block": true,
+    "only_record_important_animal": true,
+    "10s_message_max": 6,
+    "10s_command_max": 12
+}
 ```
+
+From top to bottom, these options respectively represent: logging natural blocks, logging artificial blocks, logging only significant entities, the maximum number of messages a player can send within 10 seconds, and the maximum number of commands a player can execute within 10 seconds.
 
 - To log all entity hit events instead of just important ones, change `"Record only significant entities": true` to `"false"`.  
 - The plugin defaults to Chinese but supports English via a language configuration file (`lang.json`). A pre-translated English configuration file made by ChatGPT is available for download in the release section.
@@ -95,7 +103,7 @@ Use `/tys` to search for specific keywords. Format:
 ```
 
 - **Search types:** `player`, `action`, `object` (e.g., player name, action type, or target object).  
-- **Keywords:** Examples include player names, action types (`Interact`, `Destroy`, `Attack`, `Place`), or object names (in-game IDs or ohter name in lang.json).
+- **Keywords:** Examples include player names, action types (`Interact`, `Destroy`, `Attack`, `Place`), or object names in-game IDs.
 
 Use `/tysgui` to perform keyword searches with a graphical menu. Format:
 
@@ -129,6 +137,12 @@ Use `/tysgui` to perform keyword searches with a graphical menu. Format:
   ```shell
   /banidlist
   ```  
+
+Use /tyclean command to clean database
+
+```shell
+/tyclean time(hours)
+```
 
 ### Experimental Features
 
