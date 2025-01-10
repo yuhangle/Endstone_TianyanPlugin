@@ -15,6 +15,8 @@ import re
 import sqlite3
 from endstone.form import ModalForm,Dropdown,Label,ActionForm,TextInput,Slider,MessageForm
 from endstone.inventory import Inventory,PlayerInventory
+from endstone_tianyan import zh_lang
+from endstone_tianyan import ty_clean
 
 # 兼容性代码，用于兼容1.1.3版本之前的数据
 def ensure_blockdata_column():
@@ -34,151 +36,7 @@ lang_file = os.path.join(subdir, 'lang.json')
     
 # 语言文件操作
 
-default_lang = {
-    'lang-version': '1.1.4',
-    'language': "中文",
-    '是否记录自然方块': '是否记录自然方块',
-    '是否记录人工方块': '是否记录人工方块',
-    '是否仅记录重要生物': '是否仅记录重要生物',
-    '查询玩家&部分实体行为记录 --格式 /ty x坐标 y坐标 z坐标 时间（单位：小时） 半径': '查询玩家&部分实体行为记录 --格式 /ty x坐标 y坐标 z坐标 时间（单位：小时） 半径',
-    '查看天眼命令帮助信息': '查看天眼命令帮助信息',
-    '封禁一名玩家(仅管理员可用)': '封禁一名玩家(仅管理员可用)',
-    '从黑名单中移除玩家(仅管理员可用)': '从黑名单中移除玩家(仅管理员可用)',
-    '列出所有加入黑名单的玩家(仅管理员可用)': '列出所有加入黑名单的玩家(仅管理员可用)',
-    '封禁设备ID(仅管理员可用)': '封禁设备ID(仅管理员可用)',
-    '从设备黑名单移除设备ID(仅管理员可用)': '从设备黑名单移除设备ID(仅管理员可用)',
-    '列出所有加入黑名单的设备ID(仅管理员可用)': '列出所有加入黑名单的设备ID(仅管理员可用)',
-    '关键词搜索 --格式 /tys 搜索类型  查询关键词 时间（单位：小时） (仅管理员可用)': '关键词搜索 --格式 /tys 搜索类型  查询关键词 时间（单位：小时） (仅管理员可用)',
-    '使用图形窗口查询玩家&部分实体行为记录': '使用图形窗口查询玩家&部分实体行为记录',
-    '使用图形窗口搜索关键词查询玩家&部分实体行为记录': '使用图形窗口搜索关键词查询玩家&部分实体行为记录',
-    '实验性功能 还原玩家直接方块放置破坏行为 --格式 /tyback 坐标 时间（单位：小时） 半径 实施行为的玩家名（可选）（仅管理员可用）': '实验性功能 还原玩家直接方块放置破坏行为 --格式 /tyback 坐标 时间（单位：小时） 半径 实施行为的玩家名（可选）（仅管理员可用）',
-    '天眼插件已启用  版本': '天眼插件已启用  版本',
-    '配置文件位于': '配置文件位于',
-    '插件语言设定为': '插件语言设定为',
-    '其余数据文件位于': '其余数据文件位于',
-    '项目更新地址': '项目更新地址',
-    '天眼命令使用方法': '天眼命令使用方法',
-    '使用/tyban 命令将一名玩家加入黑名单 格式 /tyban 玩家名 理由(选填)': '使用/tyban 命令将一名玩家加入黑名单 格式 /tyban 玩家名 理由(选填)',
-    '使用/tyunban 命令将一名玩家移出黑名单 格式 /tyunban 玩家名': '使用/tyunban 命令将一名玩家移出黑名单 格式 /tyunban 玩家名',
-    '使用/banlist 命令列出所有被加入黑名单的玩家名': '使用/banlist 命令列出所有被加入黑名单的玩家名',
-    '使用/banid 命令将一名玩家的设备加入黑名单(当目标玩家设备在线时添加黑名单无法直接踢出，请使用其它方法踢出该玩家) 格式 /banid 设备ID': '使用/banid 命令将一名玩家的设备加入黑名单(当目标玩家设备在线时添加黑名单无法直接踢出，请使用其它方法踢出该玩家) 格式 /banid 设备ID',
-    '使用/unbanid 命令将一名玩家的设备移出黑名单 格式 /unban 设备ID': '使用/unbanid 命令将一名玩家的设备移出黑名单 格式 /unban 设备ID',
-    '使用/banlist 命令列出所有被加入黑名单的玩家的设备ID': '使用/banlist 命令列出所有被加入黑名单的玩家的设备ID',
-    '使用 /ty 命令查询查询玩家&部分实体行为记录 格式 /ty x坐标 y坐标 z坐标 时间（单位：小时） 半径': '使用 /ty 命令查询查询玩家&部分实体行为记录 格式 /ty x坐标 y坐标 z坐标 时间（单位：小时） 半径',
-    '使用 /tys 命令使用关键词查询玩家&部分实体行为记录 格式 关键词搜索 格式 /tys 搜索类型  查询关键词 时间（单位：小时） (仅管理员可用)': '使用 /tys 命令使用关键词查询玩家&部分实体行为记录 格式 关键词搜索 格式 /tys 搜索类型  查询关键词 时间（单位：小时） (仅管理员可用)',
-    '使用/tygui 命令使用图形窗口查询玩家&部分实体行为记录': '使用/tygui 命令使用图形窗口查询玩家&部分实体行为记录',
-    '使用/tysgui 命令使用图形窗口搜索关键词查询玩家&部分实体行为记录 (仅管理员可用)': '使用/tysgui 命令使用图形窗口搜索关键词查询玩家&部分实体行为记录 (仅管理员可用)',
-    'tys命令参数解析 搜索类型:player action object(玩家或行为实施者 行为 被实施行为的对象) 搜索关键词:玩家名或行为实施者名 交互 破坏 攻击 放置 被实施行为的对象名': 'tys命令参数解析 搜索类型:player action object(玩家或行为实施者 行为 被实施行为的对象) 搜索关键词:玩家名或行为实施者名 交互 破坏 攻击 放置 被实施行为的对象名',
-    '实验性功能 使用/tyback 命令还原玩家直接方块放置破坏行为 格式 /tyback 坐标 时间（单位：小时） 半径 实施行为的玩家名（可选）（仅管理员可用）': '实验性功能 使用/tyback 命令还原玩家直接方块放置破坏行为 格式 /tyback 坐标 时间（单位：小时） 半径 实施行为的玩家名（可选）（仅管理员可用）',
-    '命令格式错误！请检查命令是否正确；如果使用~ ~ ~，请直接输入坐标': '命令格式错误！请检查命令是否正确；如果使用~ ~ ~，请直接输入坐标',
-    '查询半径最大值为100 !': '查询半径最大值为100 !',
-    '未查询到任何结果。': '未查询到任何结果。',
-    '已为您查询到此坐标半径': '已为您查询到此坐标半径',
-    '格': '格',
-    '小时内的玩家&部分实体行为记录': '小时内的玩家&部分实体行为记录',
-    '请通过弹窗查看': '请通过弹窗查看',
-    '行为实施者': '行为实施者',
-    '行为': '行为',
-    '坐标': '坐标',
-    '时间': '时间',
-    '对象类型': '对象类型',
-    '维度': '维度',
-    '下一页': '下一页',
-    '上一页': '上一页',
-    '半径': '半径',
-    '小时内的查询记录-第': '小时内的查询记录-第',
-    '页': '页',
-    '小时内的查询记录': '小时内的查询记录',
-    '格式错误': '格式错误',
-    '玩家': '玩家',
-    '已经在': '已经在',
-    '被添加至黑名单中了，理由是：': '被添加至黑名单中了，理由是：',
-    '请勿重复添加': '请勿重复添加',
-    '已被加入黑名单，理由': '已被加入黑名单，理由',
-    '理由': '理由',
-    '黑名单文件不存在，已自动创建': '黑名单文件不存在，已自动创建',
-    '已从黑名单中删除': '已从黑名单中删除',
-    '不存在于黑名单中': '不存在于黑名单中',
-    '黑名单文件不存在': '黑名单文件不存在',
-    '黑名单中没有玩家': '黑名单中没有玩家',
-    '于': '于',
-    '被封禁，理由': '被封禁，理由',
-    '设备ID': '设备ID',
-    '被添加至设备ID黑名单中了,请勿重复添加': '被添加至设备ID黑名单中了,请勿重复添加',
-    '已被加入黑名单': '已被加入黑名单',
-    '设备ID黑名单文件不存在,已自动创建': '设备ID黑名单文件不存在,已自动创建',
-    '设备黑名单文件不存在': '设备黑名单文件不存在',
-    '没有设备在黑名单中': '没有设备在黑名单中',
-    '被封禁': '被封禁',
-    '命令格式错误！请检查命令是否正确': '命令格式错误！请检查命令是否正确',
-    '命令格式错误！未知的参数': '命令格式错误！未知的参数',
-    '已为您查询到关键词': '已为您查询到关键词',
-    '的以下相关内容': '的以下相关内容',
-    '小时内的记录-第': '小时内的记录-第',
-    '小时内的记录': '小时内的记录',
-    '控制台无法使用该命令': '控制台无法使用该命令',
-    '天眼查询菜单': '天眼查询菜单',
-    '输入查询坐标': '输入查询坐标',
-    '输入查询时间（单位小时）': '输入查询时间（单位小时）',
-    '输入查询半径': '输入查询半径',
-    '天眼关键词查询菜单': '天眼关键词查询菜单',
-    '选择搜索类型(玩家或行为实施者 行为 被实施行为的对象)': '选择搜索类型(玩家或行为实施者 行为 被实施行为的对象)',
-    '关键词': '关键词',
-    '输入查询关键词': '输入查询关键词',
-    '输入查询时间（单位小时）': '输入查询时间（单位小时）',
-    '半径最大值为100 !': '半径最大值为100 !',
-    '无记录数据': '无记录数据',
-    '开始还原': '开始还原',
-    '小时内的方块': '小时内的方块',
-    '在': '在',
-    '箱子': '箱子',
-    '陷阱箱': '陷阱箱',
-    '木桶': '木桶',
-    '末影箱': '末影箱',
-    '漏斗': '漏斗',
-    '发射器': '发射器',
-    '投掷器': '投掷器',
-    '拉杆': '拉杆',
-    '未激活的红石中继器': '未激活的红石中继器',
-    '未激活的红石比较器': '未激活的红石比较器',
-    '激活的红石比较器': '激活的红石比较器',
-    '激活的红石中继器': '激活的红石中继器',
-    '唱片机': '唱片机',
-    '音符盒': '音符盒',
-    '按钮': '按钮',
-    '告示牌': '告示牌',
-    '悬挂式告示牌': '悬挂式告示牌',
-    '铁砧': '铁砧',
-    '熔炉': '熔炉',
-    '高炉': '高炉',
-    '潜影盒': '潜影盒',
-    '使用': '使用',
-    '交互': '交互',
-    '破坏': '破坏',
-    '放置': '放置',
-    '攻击': '攻击',
-    '你因涉嫌短时间内发送多条命令被ban': '你因涉嫌短时间内发送多条命令被ban',
-    '因涉嫌短时间内发送多条命令被ban': '因涉嫌短时间内发送多条命令被ban',
-    '你因涉嫌短时间内发送多条消息被ban': '你因涉嫌短时间内发送多条消息被ban',
-    '因涉嫌短时间内发送多条消息被ban': '因涉嫌短时间内发送多条消息被ban',
-    '你已被封禁，理由': '你已被封禁，理由',
-    '被封禁时间': '被封禁时间',
-    '处于封禁名单中，已被踢出，封禁理由为': '处于封禁名单中，已被踢出，封禁理由为',
-    '你的设备已于': '你的设备已于',
-    '被封禁的设备ID': '被封禁的设备ID',
-    '试图加入服务器，已被踢出': '试图加入服务器，已被踢出',
-    '设备ID': '设备ID',
-    '系统名称': '系统名称',
-    '加入了游戏': '加入了游戏',
-    '物品槽位': '物品槽位',
-    '物品名称': '物品名称',
-    '数量': '数量',
-    '的物品栏': '的物品栏',
-    '搜查玩家物品栏 --格式 /tyo 玩家名': '搜查玩家物品栏 --格式 /tyo 玩家名',
-    '使用 /tyo 命令查看玩家物品栏 格式 /tyo 玩家名': '使用 /tyo 命令查看玩家物品栏 格式 /tyo 玩家名',
-    '命令错误，请检查参数及玩家是否在线': '命令错误，请检查参数及玩家是否在线',
-    '此玩家的物品栏里没有东西': '此玩家的物品栏里没有东西'
-}
+default_lang = zh_lang.default_lang
 
 # 创建默认语言文件
 if not os.path.exists(lang_file):
@@ -228,9 +86,11 @@ language = lang.get('language') # 默认语言为中文
 
 # 配置文件部分
 default_config = {
-    lang['是否记录自然方块']: True,
-    lang['是否记录人工方块']: True,
-    lang['是否仅记录重要生物']: True,
+    "record_nature_block": True,
+    "record_human_block": True,
+    "only_record_important_animal": True,
+    "10s_message_max": 6,
+    "10s_command_max": 12
 }
 
 # 配置文件不存在则创建默认配置文件
@@ -242,11 +102,18 @@ if not os.path.exists(config_file):
 with open(config_file, 'r', encoding='utf-8') as f:
     config = json.load(f)
 
-    
+# 兼容性代码，检测到1.1.5版本前或者错误的配置文件使用默认配置覆盖
+if not "record_nature_block" in config:
+    with open(config_file, 'w', encoding='utf-8') as f:
+        json.dump(default_config, f, ensure_ascii=False, indent=4)
+        config = default_config
+        print("1.1.5版本配置文件更新,已为您自动覆盖配置文件 Configuration file updated to version 1.1.5; your configuration file has been automatically overwritten.")
 # 根据配置文件中的值设置变量
-natural = 1 if config.get(lang['是否记录自然方块'], True) else 0
-human = 1 if config.get(lang['是否记录人工方块'], True) else 0
-nbanimal = 1 if config.get(lang['是否仅记录重要生物'], True) else 0
+natural = 1 if config.get("record_nature_block", True) else 0
+human = 1 if config.get("record_human_block", True) else 0
+nbanimal = 1 if config.get("only_record_important_animal", True) else 0
+message_max = config.get("10s_message_max",6)
+command_max = config.get("10s_command_max",12)
 
 # 开启自然方块记录不开启人工方块记录
 if natural == 1 and human == 0:
@@ -321,6 +188,7 @@ def write_to_db():
     global chestrec_data, breakrec_data, animalrec_data, placerec_data, actorrec_data, is_running
     with lock:
         with running_lock:
+            # 检查数据库清理是否在运行,是则暂停写入
             if is_running:
                 return
             is_running = True
@@ -363,6 +231,33 @@ def on_plugin_close():
 
 class TianyanPlugin(Plugin):
     api_version = "0.5"
+
+
+    # 这个函数会启动一个后台任务
+    def start_tyclean(self,clean_time):
+        import threading
+        
+        # 创建一个新的线程
+        cl_thread = threading.Thread(target=self.run_tyclean, args=(clean_time,))
+        cl_thread.start()
+
+    # 接收命令运行清理函数
+    def run_tyclean(self,clean_time):
+        global is_running
+        # 开始之前声明准备开始
+        is_running = True
+        # 运行
+        ty_clean.clean_old_interactions(db_file,clean_time)
+        self.server.broadcast_message(ty_clean.msg1)
+        # 成功即报出空间清理和完成信息
+        try:
+            self.server.broadcast_message(ty_clean.vac_msg)
+            self.server.broadcast_message(ty_clean.msg2)
+        except:
+            self.server.broadcast_message(f"{ColorFormat.RED}{lang['数据库清理发生了未知错误']}")
+        # 完成
+        is_running = False
+
 
     commands = {
         "ty": {
@@ -429,6 +324,11 @@ class TianyanPlugin(Plugin):
             "description": lang["搜查玩家物品栏 --格式 /tyo 玩家名"],
             "usages": ["/tyo <msg:message>"],
             "permissions": ["tianyan_plugin.command.tyo"],
+        },
+        "tyclean": {
+            "description": lang["清理数据库 --格式 /tyclean 时间"],
+            "usages": ["/tyclean <msg:message>"],
+            "permissions": ["tianyan_plugin.command.tyclean"],
         }
         #"test": {
         #    "description": "2",
@@ -490,6 +390,10 @@ class TianyanPlugin(Plugin):
             "description": "设置回档",
             "default": "op", 
         },
+        "tianyan_plugin.command.tyclean": {
+            "description": "1",
+            "default": "op", 
+        },
         "tianyan_plugin.command.test": {
             "description": "1",
             "default": True, 
@@ -501,7 +405,7 @@ class TianyanPlugin(Plugin):
         ensure_blockdata_column()
 
     def on_enable(self) -> None:
-        self.logger.info(f"{ColorFormat.YELLOW}{lang["天眼插件已启用  版本"]} V1.1.4.1")
+        self.logger.info(f"{ColorFormat.YELLOW}{lang["天眼插件已启用  版本"]} V1.1.5")
         self.logger.info(f"{ColorFormat.YELLOW}{lang["配置文件位于"]}plugins/tianyan_data/config.json")
         self.logger.info(f"{ColorFormat.YELLOW}{lang["插件语言设定为"]} {language}")
         self.logger.info(f"{ColorFormat.YELLOW}{lang["其余数据文件位于"]} plugins/tianyan_data/")
@@ -1231,15 +1135,30 @@ class TianyanPlugin(Plugin):
                                 #action = '破坏'
                         
         
-        elif command.name == "test":
-            self.server.get_player(sender.name).send_form(
-                MessageForm(
-                    title='测试表单',
-                    content='先帝创业未半而中道崩殂，今天下三分，益州疲弊，此诚危急存亡之秋也。然侍卫之臣不懈于内，忠志之士忘身于外者，盖追先帝之殊遇，欲报之于陛下也。诚宜开张圣听，以光先帝遗德，恢弘志士之气，不宜妄自菲薄，引喻失义，以塞忠谏之路也。',
-                    button1='确定',
-                    button2='取消'
-                )
-            )
+        elif command.name == "tyclean":
+            if len(args) == 1:
+                if not isinstance(sender, Player):
+                    try:
+                        clean_time = float(args[0])
+                    except:
+                        self.server.logger.info(f"{lang['参数错误']}")
+                        return
+                    # 运行清理函数
+                    self.start_tyclean(clean_time)
+                else:
+                    try:
+                        clean_time = float(args[0])
+                    except:
+                        sender.send_error_message(f"{lang['参数错误']}")
+                        return
+                    # 运行清理函数
+                    self.start_tyclean(clean_time)
+            else:
+                if not isinstance(sender, Player):
+                    pass
+                    #self.server.logger.info(f"{lang['参数错误']}")
+                else:
+                    sender.send_error_message(f"{lang['参数错误']}")
         
 # 容器交互和其它交互事件
     @event_handler
@@ -1260,225 +1179,20 @@ class TianyanPlugin(Plugin):
                 chestrec_data.append(interaction)                  
             #threading.Thread(target=write_to_file).start()
             
-        if event.block.type == "minecraft:chest":
-            name = event.player.name
-            action = lang["交互"]
-            x = event.block.x
-            y = event.block.y
-            z = event.block.z
-            type = lang["箱子"]
-            world = event.block.location.dimension.name
-            record_data(name, action, x, y, z, type, world)
-            
-        if event.block.type == "minecraft:trapped_chest":
-            name = event.player.name
-            action = lang["交互"]
-            x = event.block.x
-            y = event.block.y
-            z = event.block.z
-            type = lang["陷阱箱"]
-            world = event.block.location.dimension.name
-            record_data(name, action, x, y, z, type, world)
-            
-        if event.block.type == "minecraft:barrel":
-            name = event.player.name
-            action = lang["交互"]
-            x = event.block.x
-            y = event.block.y
-            z = event.block.z
-            type = lang["木桶"]
-            world = event.block.location.dimension.name
-            record_data(name, action, x, y, z, type, world)
-            
-        if event.block.type == "minecraft:ender_chest":
-            name = event.player.name
-            action = lang["交互"]
-            x = event.block.x
-            y = event.block.y
-            z = event.block.z
-            type = lang["末影箱"]
-            world = event.block.location.dimension.name
-            record_data(name, action, x, y, z, type, world)
-            
-        if event.block.type == "minecraft:hopper":
-            name = event.player.name
-            action = lang["交互"]
-            x = event.block.x
-            y = event.block.y
-            z = event.block.z
-            type = lang["漏斗"]
-            world = event.block.location.dimension.name
-            record_data(name, action, x, y, z, type, world)
-            
-        if event.block.type == "minecraft:dispenser":
-            name = event.player.name
-            action = lang["交互"]
-            x = event.block.x
-            y = event.block.y
-            z = event.block.z
-            type = lang["发射器"]
-            world = event.block.location.dimension.name
-            record_data(name, action, x, y, z, type, world)
-            
-        if event.block.type == "minecraft:dropper":
-            name = event.player.name
-            action = lang["交互"]
-            x = event.block.x
-            y = event.block.y
-            z = event.block.z
-            type = lang["投掷器"]
-            world = event.block.location.dimension.name
-            record_data(name, action, x, y, z, type, world)
-            
-        if event.block.type == "minecraft:lever":
-            name = event.player.name
-            action = lang["交互"]
-            x = event.block.x
-            y = event.block.y
-            z = event.block.z
-            type = lang["拉杆"]
-            world = event.block.location.dimension.name
-            record_data(name, action, x, y, z, type, world)
-            
-        if event.block.type == "minecraft:unpowered_repeater":
-            name = event.player.name
-            action = lang["交互"]
-            x = event.block.x
-            y = event.block.y
-            z = event.block.z
-            type = lang["未激活的红石中继器"]
-            world = event.block.location.dimension.name
-            record_data(name, action, x, y, z, type, world)
-            
-        if event.block.type == "minecraft:unpowered_comparator":
-            name = event.player.name
-            action = lang["交互"]
-            x = event.block.x
-            y = event.block.y
-            z = event.block.z
-            type = lang["未激活的红石比较器"]
-            world = event.block.location.dimension.name
-            record_data(name, action, x, y, z, type, world)
-            
-        if event.block.type == "minecraft:powered_comparator":
-            name = event.player.name
-            action = lang["交互"]
-            x = event.block.x
-            y = event.block.y
-            z = event.block.z
-            type = lang["激活的红石比较器"]
-            world = event.block.location.dimension.name
-            record_data(name, action, x, y, z, type, world)
-            
-        if event.block.type == "minecraft:powered_repeater":
-            name = event.player.name
-            action = lang["交互"]
-            x = event.block.x
-            y = event.block.y
-            z = event.block.z
-            type = lang["激活的红石中继器"]
-            world = event.block.location.dimension.name
-            record_data(name, action, x, y, z, type, world)
-            
-        if event.block.type == "minecraft:jukebox":
-            name = event.player.name
-            action = lang["交互"]
-            x = event.block.x
-            y = event.block.y
-            z = event.block.z
-            type = lang["唱片机"]
-            world = event.block.location.dimension.name
-            record_data(name, action, x, y, z, type, world)
-            
-        if event.block.type == "minecraft:noteblock":
-            name = event.player.name
-            action = lang["交互"]
-            x = event.block.x
-            y = event.block.y
-            z = event.block.z
-            type = lang["音符盒"]
-            world = event.block.location.dimension.name
-            record_data(name, action, x, y, z, type, world)
-            
         if event.block.type in [
+            "minecraft:trapped_chest","minecraft:barrel","minecraft:ender_chest","minecraft:hopper","minecraft:dispenser",
+            "minecraft:dropper","minecraft:lever","minecraft:unpowered_repeater","minecraft:unpowered_comparator",
+            "minecraft:powered_comparator","minecraft:powered_repeater","minecraft:jukebox","minecraft:noteblock",
             "minecraft:wooden_button","minecraft:spruce_button","minecraft:birch_button","minecraft:jungle_button","minecraft:acacia_button",
             "minecraft:dark_oak_button","minecraft:mangrove_button","minecraft:cherry_button","minecraft:bamboo_button","minecraft:pale_oak_button",
-            "minecraft:crimson_button","minecraft:warped_button","minecraft:stone_button","minecraft:polished_blackstone_button"
-            ]:
-            name = event.player.name
-            action = lang["交互"]
-            x = event.block.x
-            y = event.block.y
-            z = event.block.z
-            type = lang["按钮"]
-            world = event.block.location.dimension.name
-            record_data(name, action, x, y, z, type, world)
-            
-        if event.block.type in [
+            "minecraft:crimson_button","minecraft:warped_button","minecraft:stone_button","minecraft:polished_blackstone_button",
             "minecraft:standing_sign","minecraft:spruce_standing_sign","minecraft:birch_standing_sign","minecraft:jungle_standing_sign","minecraft:acacia_standing_sign",
             "minecraft:darkoak_standing_sign","minecraft:mangrove_standing_sign","minecraft:cherry_standing_sign","minecraft:pale_oak_standing_sign","minecraft:bamboo_standing_sign",
             "minecraft:crimson_standing_sign","minecraft:warped_standing_sign","minecraft:wall_sign","minecraft:spruce_wall_sign","minecraft:birch_wall_sign","minecraft:jungle_wall_sign",
-            "minecraft:acacia_wall_sign","minecraft:darkoak_wall_sign","minecraft:mangrove_wall_sign","minecraft:cherry_wall_sign","minecraft:pale_oak_wall_sign","minecraft:bamboo_wall_sign","minecraft:crimson_wall_sign","minecraft:warped_wall_sign"
-            ]:
-            name = event.player.name
-            action = lang["交互"]
-            x = event.block.x
-            y = event.block.y
-            z = event.block.z
-            type = lang["告示牌"]
-            world = event.block.location.dimension.name
-            record_data(name, action, x, y, z, type, world)
-            
-        if event.block.type in [
+            "minecraft:acacia_wall_sign","minecraft:darkoak_wall_sign","minecraft:mangrove_wall_sign","minecraft:cherry_wall_sign","minecraft:pale_oak_wall_sign","minecraft:bamboo_wall_sign","minecraft:crimson_wall_sign","minecraft:warped_wall_sign",
             "minecraft:oak_hanging_sign","minecraft:spruce_hanging_sign","minecraft:birch_hanging_sign","jungle_hanging_sign","acacia_hanging_sign",
-            "dark_oak_hanging_sign","mangrove_hanging_sign","cherry_hanging_sign","pale_oak_hanging_sign","bamboo_hanging_sign","crimson_hanging_sign","warped_hanging_sign"
-            ]:
-            name = event.player.name
-            action = lang["交互"]
-            x = event.block.x
-            y = event.block.y
-            z = event.block.z
-            type = lang["悬挂式告示牌"]
-            world = event.block.location.dimension.name
-            record_data(name, action, x, y, z, type, world)
-            
-        if event.block.type in [
-            "minecraft:anvil","minecraft:chipped_anvil","minecraft:damaged_anvil"
-            ]:
-            name = event.player.name
-            action = lang["交互"]
-            x = event.block.x
-            y = event.block.y
-            z = event.block.z
-            type = lang["铁砧"]
-            world = event.block.location.dimension.name
-            record_data(name, action, x, y, z, type, world)
-            
-        if event.block.type in [
-            "minecraft:furnace","minecraft:lit_furnace"
-            ]:
-            name = event.player.name
-            action = lang["交互"]
-            x = event.block.x
-            y = event.block.y
-            z = event.block.z
-            type = lang["熔炉"]
-            world = event.block.location.dimension.name
-            record_data(name, action, x, y, z, type, world)
-            
-        if event.block.type in [
-            "minecraft:blast_furnace","minecraft:lit_blast_furnace"
-            ]:
-            name = event.player.name
-            action = lang["交互"]
-            x = event.block.x
-            y = event.block.y
-            z = event.block.z
-            type = lang["高炉"]
-            world = event.block.location.dimension.name
-            record_data(name, action, x, y, z, type, world)
-        
-        if event.block.type in [
+            "dark_oak_hanging_sign","mangrove_hanging_sign","cherry_hanging_sign","pale_oak_hanging_sign","bamboo_hanging_sign","crimson_hanging_sign","warped_hanging_sign",
+            "minecraft:anvil","minecraft:chipped_anvil","minecraft:damaged_anvil","minecraft:furnace","minecraft:lit_furnace","minecraft:blast_furnace","minecraft:lit_blast_furnace",
             "minecraft:undyed_shulker_box", "minecraft:white_shulker_box", 
             "minecraft:light_gray_shulker_box", "minecraft:gray_shulker_box", 
             "minecraft:brown_shulker_box", "minecraft:red_shulker_box", 
@@ -1486,34 +1200,33 @@ class TianyanPlugin(Plugin):
             "minecraft:lime_shulker_box", "minecraft:green_shulker_box", 
             "minecraft:cyan_shulker_box", "minecraft:light_blue_shulker_box", 
             "minecraft:blue_shulker_box", "minecraft:purple_shulker_box", 
-            "minecraft:magenta_shulker_box", "minecraft:pink_shulker_box"
-        ]:
+            "minecraft:magenta_shulker_box", "minecraft:pink_shulker_box","minecraft:chest"
+            
+            ]:
             name = event.player.name
             action = lang["交互"]
             x = event.block.x
             y = event.block.y
             z = event.block.z
+            type = event.block.type
             world = event.block.location.dimension.name
-            type = lang["潜影盒"]
-            record_data(name, action, x, y, z, type,world)
+            record_data(name, action, x, y, z, type, world)
         
-        if str(event.item) in [
-            "ItemStack(minecraft:flint_and_steel x 1)","ItemStack(minecraft:lava_bucket x 1)","ItemStack(minecraft:water_bucket x 1)","ItemStack(minecraft:powder_snow_bucket x 1)","ItemStack(minecraft:cod_bucket x 1)","ItemStack(minecraft:salmon_bucket x 1)","ItemStack(minecraft:pufferfish_bucket x 1)","ItemStack(minecraft:tropical_fish_bucket x 1)","ItemStack(minecraft:axolotl_bucket x 1)","ItemStack(minecraft:tadpole_bucket x 1)"
-        ]:
+        elif event.item.type in [
+            "minecraft:flint_and_steel","minecraft:lava_bucket","minecraft:water_bucket","minecraft:powder_snow_bucket","minecraft:cod_bucket","minecraft:salmon_bucket","minecraft:pufferfish_bucket","minecraft:tropical_fish_bucket","minecraft:axolotl_bucket","minecraft:tadpole_bucket"
+        ]:  # 打火石、岩浆桶、水桶、鱼桶交互
             name = event.player.name
             blocktype = event.block.type
             action = lang["交互"]
             x = event.block.x
             y = event.block.y
             z = event.block.z
-            type = f"{blocktype}，{lang["使用"]}{event.item}"
+            type = f"{blocktype}，{lang["使用"]}{event.item.type}"
             world = event.block.location.dimension.name
             record_data(name, action, x, y, z, type,world)
             
-        # 数量未定
-        item_str = str(event.item)
-        bucket_pattern = r"ItemStack\(minecraft:bucket\s+x\s*\d+\)"
-        if re.match(bucket_pattern, item_str) and event.block.type in [
+
+        elif event.item.type == "minecraft:bucket" and event.block.type in [
             "minecraft:water","minecraft:lava","minecraft:powder_snow"]:# 桶对可被桶装的方块交互
             name = event.player.name
             blocktype = event.block.type
@@ -1521,43 +1234,34 @@ class TianyanPlugin(Plugin):
             x = event.block.x
             y = event.block.y
             z = event.block.z
-            type = f"{blocktype}，{lang["使用"]}{event.item}"
+            type = f"{blocktype}，{lang["使用"]}{event.item.type}"
             world = event.block.location.dimension.name
             record_data(name, action, x, y, z, type,world)
 
-        fire_pattern = r"ItemStack\(minecraft:fire_charge\s+x\s*\d+\)"
-        if re.match(fire_pattern, item_str):# 火焰弹
+        elif event.item.type == "minecraft:fire_charge":# 火焰弹
             name = event.player.name
             blocktype = event.block.type
             action = lang["交互"]
             x = event.block.x
             y = event.block.y
             z = event.block.z
-            type = f"{blocktype}，{lang["使用"]}{event.item}"
+            type = f"{blocktype}，{lang["使用"]}{event.item.type}"
             world = event.block.location.dimension.name
             record_data(name, action, x, y, z, type,world)
             
-        if event.block.type == "minecraft:bed":# 床
+        elif event.block.type in [
+            "minecraft:bed","minecraft:respawn_anchor"
+            ]:# 床 重生锚
             name = event.player.name
             blocktype = event.block.type
             action = lang["交互"]
             x = event.block.x
             y = event.block.y
             z = event.block.z
-            type = f"{blocktype}，{lang["使用"]}{event.item}"
+            type = f"{blocktype}，{lang["使用"]}{event.item.type}"
             world = event.block.location.dimension.name
             record_data(name, action, x, y, z, type,world)
             
-        if event.block.type == "minecraft:respawn_anchor":# 重生锚
-            name = event.player.name
-            blocktype = event.block.type
-            action = lang["交互"]
-            x = event.block.x
-            y = event.block.y
-            z = event.block.z
-            type = f"{blocktype}，{lang["使用"]}{event.item}"
-            world = event.block.location.dimension.name
-            record_data(name, action, x, y, z, type,world)
        
 # 方块破坏事件
     @event_handler
@@ -1689,7 +1393,7 @@ class TianyanPlugin(Plugin):
             # 仅重要生物记录
         if nbanimal == 1:
             if event.actor.name in [
-                "Horse","Pig","Wolf","Cat","Sniffer","Parrot","Donkey","Mule","Villager","Allay"
+                "Horse","Pig","Wolf","Cat","Sniffer","Parrot","Donkey","Mule","Villager","Allay","Armor_stand"
             ]:
                 name = event.source.name
                 action = lang["攻击"]
@@ -1790,7 +1494,7 @@ class TianyanPlugin(Plugin):
 # 记录玩家命令的字典
 
 
-    # 检查命令刷屏，10秒内12条视为刷屏
+    # 检查命令刷屏，默认10秒内12条视为刷屏
     @event_handler    
     def commandsban(self, event: PlayerCommandEvent):
         def ban(playername,reason):
@@ -1820,7 +1524,7 @@ class TianyanPlugin(Plugin):
         player_commands[player_name] = [t for t in player_commands[player_name] if current_time - t <= 10]
         
         # 检查10秒内命令数量是否超过阈值
-        if len(player_commands[player_name]) > 12:  # 阈值为12
+        if len(player_commands[player_name]) > int(command_max):  # 从配置文件导入阈值，默认为12
             reason = lang["你因涉嫌短时间内发送多条命令被ban"]
             event.player.kick(reason)
             #self.logger.info(f"{player_name}" + f"{reason}")
@@ -1859,14 +1563,14 @@ class TianyanPlugin(Plugin):
         #command = PlayerCommandEvent.command
         current_time = tm.time()
         
-        # 记录玩家的命令和时间
+        # 记录玩家的消息和时间
         player_message[player_name].append(current_time)
         
         # 保留最近10秒内的命令
         player_message[player_name] = [t for t in player_message[player_name] if current_time - t <= 10]
         
-        # 检查60秒内命令数量是否超过阈值
-        if len(player_message[player_name]) > 6:  # 阈值为6
+        # 检查10秒内消息数量是否超过阈值
+        if len(player_message[player_name]) > int(message_max):  # 从配置文件导入阈值，默认为6
             reason = lang["你因涉嫌短时间内发送多条消息被ban"]
             event.player.kick(reason)
             #self.logger.info(f"{player_name}" + f"{reason}")
