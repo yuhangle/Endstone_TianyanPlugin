@@ -405,7 +405,7 @@ class TianyanPlugin(Plugin):
         ensure_blockdata_column()
 
     def on_enable(self) -> None:
-        self.logger.info(f"{ColorFormat.YELLOW}{lang["天眼插件已启用  版本"]} V1.1.5")
+        self.logger.info(f"{ColorFormat.YELLOW}{lang["天眼插件已启用  版本"]} V1.1.5.1")
         self.logger.info(f"{ColorFormat.YELLOW}{lang["配置文件位于"]}plugins/tianyan_data/config.json")
         self.logger.info(f"{ColorFormat.YELLOW}{lang["插件语言设定为"]} {language}")
         self.logger.info(f"{ColorFormat.YELLOW}{lang["其余数据文件位于"]} plugins/tianyan_data/")
@@ -1212,7 +1212,16 @@ class TianyanPlugin(Plugin):
             world = event.block.location.dimension.name
             record_data(name, action, x, y, z, type, world)
         
-        elif event.item.type in [
+        # 解决空手交互时物品为空报错的问题
+        try:
+            if event.item.type:
+                pass
+        except:
+            return
+        
+        #玩家使用物品交互
+        
+        if event.item.type in [
             "minecraft:flint_and_steel","minecraft:lava_bucket","minecraft:water_bucket","minecraft:powder_snow_bucket","minecraft:cod_bucket","minecraft:salmon_bucket","minecraft:pufferfish_bucket","minecraft:tropical_fish_bucket","minecraft:axolotl_bucket","minecraft:tadpole_bucket"
         ]:  # 打火石、岩浆桶、水桶、鱼桶交互
             name = event.player.name
