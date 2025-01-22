@@ -1,5 +1,5 @@
 {
-    "lang-version": "1.1.5",
+    "lang-version": "1.1.6",
     "language": "English",
     "查询玩家&部分实体行为记录 --格式 /ty x坐标 y坐标 z坐标 时间（单位：小时） 半径": "Query player & partial entity behavior records -- Format: /ty x-coordinate y-coordinate z-coordinate Time (in hours) Radius",
     "查看天眼命令帮助信息": "View Tianyan command help information",
@@ -125,5 +125,9 @@
     "这些数据超过": "These data exceed ",
     "小时": " hours",
     "已重构数据库释放空间": "Database has been restructured to free up space",
-    "行": " lines"
+    "行": " lines",
+    "\n\n天眼插件更新检测:\n插件版本与最新版本不符,请检查更新。最新版本为": "\n\nTianyan Plugin Update Check:\nThe plugin version does not match the latest version, please check for updates. The latest version is",
+    "\n\n天眼插件更新检测:\n无法获取最新版本信息\n": "\n\nTianyan Plugin Update Check:\nUnable to retrieve the latest version information\n",
+    "\n\n天眼插件更新检测:\n更新检测超时\n": "\n\nTianyan Plugin Update Check:\nUpdate check timed out\n",
+    "\n\n天眼插件更新检测:\n检测更新时发生未知错误": "\n\nTianyan Plugin Update Check:\nAn unknown error occurred while checking for updates"
 }
