@@ -15,8 +15,10 @@ import re
 import sqlite3
 from endstone.form import ModalForm,Dropdown,Label,ActionForm,TextInput,Slider,MessageForm
 from endstone.inventory import Inventory,PlayerInventory
-from endstone_tianyan import zh_lang
+from endstone_tianyan import zh_lang, eng_lang
 from endstone_tianyan import ty_clean
+import requests
+from concurrent.futures import ThreadPoolExecutor, TimeoutError
 
 # 兼容性代码，用于兼容1.1.3版本之前的数据
 def ensure_blockdata_column():
@@ -33,29 +35,61 @@ banlist = os.path.join('plugins/tianyan_data/banlist.json')
 banidlist = os.path.join('plugins/tianyan_data/banidlist.json')
 config_file = os.path.join(subdir, 'config.json')
 lang_file = os.path.join(subdir, 'lang.json')
-    
+plugin_version = "v1.1.6"
+
+# GitHub上的版本信息URL
+VERSION_URL = "https://api.github.com/repos/yuhangle/Endstone_TianyanPlugin/releases/latest"
+
 # 语言文件操作
 
-default_lang = zh_lang.default_lang
+# 通过google.com可否访问来区分大陆与非大陆环境
+def can_access_google(timeout=3):
+    try:
+        response = requests.get('https://www.google.com', timeout=timeout)
+        # 如果响应状态码是200，表示成功访问
+        if response.status_code == 200:
+            return True
+    except requests.ConnectionError as ce:
+        return False
+    except requests.Timeout as to:
+        return False
+    except requests.RequestException as re:
+        return False
+
+    return False
+
+# 大陆环境默认语言
+cn_default_lang = zh_lang.default_lang
+# 非大陆环境默认语言
+eng_default_lang = eng_lang.default_lang
 
 # 创建默认语言文件
 if not os.path.exists(lang_file):
+    # 非大陆设置为英语默认,否则中文
+    if can_access_google():
+        default_lang = eng_default_lang
+    else:
+        default_lang = cn_default_lang
     with open(lang_file, 'w', encoding='utf-8') as f:
         json.dump(default_lang, f, ensure_ascii=False, indent=4)
     print(f"{datetime.now().isoformat()}     [Tianyan] 未检测到语言文件，已创建默认语言文件 No language file was detected, and a default language file has been created.")
-   
 
 # 读取语言文件
 with open(lang_file, 'r', encoding='utf-8') as f:
     lang = json.load(f)
     
 # 语言文件完整性检查    
-default_key = set(default_lang.keys())
+default_key = set(cn_default_lang.keys())
 lang_key = set(lang.keys())
 if lang_key == default_key:
     print(f"{datetime.now().isoformat()}     [Tianyan] 语言文件检测正常 Language file detection is normal")
 # 语言文件不完整
 else:
+    # 检测网络判断区域来决定默认语言文件
+    if can_access_google():
+        default_lang = eng_default_lang
+    else:
+        default_lang = cn_default_lang
     # 语言版本信息存在时
     lang_version = lang.get("lang-version", None)
     if lang_version:
@@ -63,11 +97,19 @@ else:
         if lang["lang-version"] == default_lang["lang-version"]:
             print(f"{datetime.now().isoformat()}     [Tianyan] 天眼语言文件部分缺失! 使用默认语言文件 Part of the language file is missing! Using the default language file")
             lang = default_lang
+        # 语言文件为中文自动更新
         elif lang["language"] == "中文":
             # 更新默认语言文件
             with open(lang_file, 'w', encoding='utf-8') as f:
-                json.dump(default_lang, f, ensure_ascii=False, indent=4)
+                json.dump(cn_default_lang, f, ensure_ascii=False, indent=4)
             print(f"{datetime.now().isoformat()}     [Tianyan] 天眼语言版本不适配! 已为您自动更新语言文件!")
+            lang = default_lang
+        # 语言文件为英语自动更新
+        elif lang["language"] == "English":
+            # 更新默认语言文件
+            with open(lang_file, 'w', encoding='utf-8') as f:
+                json.dump(eng_default_lang, f, ensure_ascii=False, indent=4)
+            print(f"{datetime.now().isoformat()}     [Tianyan] Tianyan Plugin language is not latest! The language file has been automatically updated for you!")
             lang = default_lang
         # 语言版本不同 提示更新语言文件
         else:
@@ -257,6 +299,26 @@ class TianyanPlugin(Plugin):
             self.server.broadcast_message(f"{ColorFormat.RED}{lang['数据库清理发生了未知错误']}")
         # 完成
         is_running = False
+        
+    # 更新检测函数
+
+    def check_for_updates(self):
+        try:
+            # 使用ThreadPoolExecutor来管理线程和超时
+            with ThreadPoolExecutor(max_workers=1) as executor:
+                future = executor.submit(lambda: requests.get(VERSION_URL, timeout=3))  # 设置请求级别的3秒超时
+                response = future.result(timeout=3)  # 设置线程池级别的3秒超时
+                
+                if response.status_code == 200:
+                    latest_version = response.json().get('tag_name', 'Unknown')
+                    if not latest_version == plugin_version:
+                        self.server.logger.info(f"{ColorFormat.YELLOW}{lang['\n\n天眼插件更新检测:\n插件版本与最新版本不符,请检查更新。最新版本为']}: {latest_version}\n")
+                else:
+                    self.server.logger.info(f"{ColorFormat.YELLOW}{lang['\n\n天眼插件更新检测:\n无法获取最新版本信息\n']}")
+        except requests.exceptions.Timeout:
+            self.server.logger.info(f"{ColorFormat.YELLOW}{lang['\n\n天眼插件更新检测:\n更新检测超时\n']}")
+        except Exception as e:
+            self.server.logger.info(f"{ColorFormat.YELLOW}{lang['\n\n天眼插件更新检测:\n检测更新时发生未知错误']}: {e}\n")
 
 
     commands = {
@@ -405,7 +467,9 @@ class TianyanPlugin(Plugin):
         ensure_blockdata_column()
 
     def on_enable(self) -> None:
-        self.logger.info(f"{ColorFormat.YELLOW}{lang["天眼插件已启用  版本"]} V1.1.5.1")
+        # 更新检测
+        self.check_for_updates()
+        self.logger.info(f"{ColorFormat.YELLOW}{lang["天眼插件已启用  版本"]} {plugin_version}")
         self.logger.info(f"{ColorFormat.YELLOW}{lang["配置文件位于"]}plugins/tianyan_data/config.json")
         self.logger.info(f"{ColorFormat.YELLOW}{lang["插件语言设定为"]} {language}")
         self.logger.info(f"{ColorFormat.YELLOW}{lang["其余数据文件位于"]} plugins/tianyan_data/")
@@ -1179,7 +1243,78 @@ class TianyanPlugin(Plugin):
                 chestrec_data.append(interaction)                  
             #threading.Thread(target=write_to_file).start()
             
-        if event.block.type in [
+        # 解决空手交互时物品为空报错的问题
+        try:
+            if event.item.type:
+                hand_item = event.item.type
+        except:
+            hand_item = "hand"
+            
+        #先检测是否玩家使用物品交互
+        
+        if hand_item in [
+            "minecraft:flint_and_steel","minecraft:lava_bucket","minecraft:water_bucket","minecraft:powder_snow_bucket","minecraft:cod_bucket","minecraft:salmon_bucket","minecraft:pufferfish_bucket","minecraft:tropical_fish_bucket","minecraft:axolotl_bucket","minecraft:tadpole_bucket"
+        ]:  # 手持打火石、岩浆桶、水桶、鱼桶交互
+            name = event.player.name
+            blocktype = event.block.type
+            action = lang["交互"]
+            x = event.block.x
+            y = event.block.y
+            z = event.block.z
+            type = f"{blocktype}，{lang["使用"]}{hand_item}"
+            world = event.block.location.dimension.name
+            record_data(name, action, x, y, z, type,world)
+            
+
+        elif hand_item == "minecraft:bucket" and event.block.type in [
+            "minecraft:water","minecraft:lava","minecraft:powder_snow"]:# 手持桶对可被桶装的方块交互
+            name = event.player.name
+            blocktype = event.block.type
+            action = lang["交互"]
+            x = event.block.x
+            y = event.block.y
+            z = event.block.z
+            type = f"{blocktype}，{lang["使用"]}{hand_item}"
+            world = event.block.location.dimension.name
+            record_data(name, action, x, y, z, type,world)
+
+        elif hand_item == "minecraft:fire_charge":# 手持火焰弹
+            name = event.player.name
+            blocktype = event.block.type
+            action = lang["交互"]
+            x = event.block.x
+            y = event.block.y
+            z = event.block.z
+            type = f"{blocktype}，{lang["使用"]}{hand_item}"
+            world = event.block.location.dimension.name
+            record_data(name, action, x, y, z, type,world)
+            
+        elif event.block.type in [
+            "minecraft:bed","minecraft:respawn_anchor"
+            ]:# 被交互物品为床 重生锚
+            name = event.player.name
+            blocktype = event.block.type
+            action = lang["交互"]
+            x = event.block.x
+            y = event.block.y
+            z = event.block.z
+            type = f"{blocktype}，{lang["使用"]}{hand_item}"
+            world = event.block.location.dimension.name
+            record_data(name, action, x, y, z, type,world)
+            
+        elif hand_item == "minecraft:end_crystal":# 手持末影水晶
+            name = event.player.name
+            blocktype = event.block.type
+            action = lang["交互"]
+            x = event.block.x
+            y = event.block.y
+            z = event.block.z
+            type = f"{blocktype}，{lang["使用"]}{hand_item}"
+            world = event.block.location.dimension.name
+            record_data(name, action, x, y, z, type,world)
+            
+        # 最后检测手持物品之外的容器告示牌等东西的交互事件
+        elif event.block.type in [
             "minecraft:trapped_chest","minecraft:barrel","minecraft:ender_chest","minecraft:hopper","minecraft:dispenser",
             "minecraft:dropper","minecraft:lever","minecraft:unpowered_repeater","minecraft:unpowered_comparator",
             "minecraft:powered_comparator","minecraft:powered_repeater","minecraft:jukebox","minecraft:noteblock",
@@ -1212,64 +1347,9 @@ class TianyanPlugin(Plugin):
             world = event.block.location.dimension.name
             record_data(name, action, x, y, z, type, world)
         
-        # 解决空手交互时物品为空报错的问题
-        try:
-            if event.item.type:
-                pass
-        except:
-            return
-        
-        #玩家使用物品交互
-        
-        if event.item.type in [
-            "minecraft:flint_and_steel","minecraft:lava_bucket","minecraft:water_bucket","minecraft:powder_snow_bucket","minecraft:cod_bucket","minecraft:salmon_bucket","minecraft:pufferfish_bucket","minecraft:tropical_fish_bucket","minecraft:axolotl_bucket","minecraft:tadpole_bucket"
-        ]:  # 打火石、岩浆桶、水桶、鱼桶交互
-            name = event.player.name
-            blocktype = event.block.type
-            action = lang["交互"]
-            x = event.block.x
-            y = event.block.y
-            z = event.block.z
-            type = f"{blocktype}，{lang["使用"]}{event.item.type}"
-            world = event.block.location.dimension.name
-            record_data(name, action, x, y, z, type,world)
-            
 
-        elif event.item.type == "minecraft:bucket" and event.block.type in [
-            "minecraft:water","minecraft:lava","minecraft:powder_snow"]:# 桶对可被桶装的方块交互
-            name = event.player.name
-            blocktype = event.block.type
-            action = lang["交互"]
-            x = event.block.x
-            y = event.block.y
-            z = event.block.z
-            type = f"{blocktype}，{lang["使用"]}{event.item.type}"
-            world = event.block.location.dimension.name
-            record_data(name, action, x, y, z, type,world)
+        
 
-        elif event.item.type == "minecraft:fire_charge":# 火焰弹
-            name = event.player.name
-            blocktype = event.block.type
-            action = lang["交互"]
-            x = event.block.x
-            y = event.block.y
-            z = event.block.z
-            type = f"{blocktype}，{lang["使用"]}{event.item.type}"
-            world = event.block.location.dimension.name
-            record_data(name, action, x, y, z, type,world)
-            
-        elif event.block.type in [
-            "minecraft:bed","minecraft:respawn_anchor"
-            ]:# 床 重生锚
-            name = event.player.name
-            blocktype = event.block.type
-            action = lang["交互"]
-            x = event.block.x
-            y = event.block.y
-            z = event.block.z
-            type = f"{blocktype}，{lang["使用"]}{event.item.type}"
-            world = event.block.location.dimension.name
-            record_data(name, action, x, y, z, type,world)
             
        
 # 方块破坏事件
@@ -1327,9 +1407,11 @@ class TianyanPlugin(Plugin):
                 turnblock = event.block.data.block_states
                 blockdata = f" [{', '.join([f'"{key}"={value}' if isinstance(value, (bool, int, float)) else f'"{key}"="{value}"' for key, value in turnblock.items()])}]"
                 record_data(name, action, x, y, z,type,world,blockdata)
+                
+            return
 
         # 全开
-        if blockrec == 2:
+        elif blockrec == 2:
             if True:
                 name = event.player.name
                 action = lang["破坏"]
@@ -1342,8 +1424,10 @@ class TianyanPlugin(Plugin):
                 blockdata = f" [{', '.join([f'"{key}"={value}' if isinstance(value, (bool, int, float)) else f'"{key}"="{value}"' for key, value in turnblock.items()])}]"
                 record_data(name, action, x, y, z,type,world,blockdata)
                 
+            return
+                
         # 仅人造方块记录
-        if blockrec == 4:
+        elif blockrec == 4:
             if event.block.type in [
                 "minecraft:stone","minecraft:granite","minecraft:diorite","minecraft:andesite","minecraft:grass_block","minecraft:dirt","minecraft:coarse_dirt","minecraft:podzol",
                 "minecraft:sand","minecraft:red_sand","minecraft:gravel","minecraft:gold_ore","minecraft:iron_ore","minecraft:coal_ore","minecraft:oak_log","minecraft:spruce_log",
@@ -1369,7 +1453,8 @@ class TianyanPlugin(Plugin):
                 "minecraft:mangrove_leaves","minecraft:mangrove_roots","minecraft:muddy_mangrove_roots","minecraft:mud","minecraft:cherry_log","minecraft:cherry_leaves","minecraft:torchflower","minecraft:pink_petals",
                 "minecraft:pitcher_plant"
             ]:
-                return False
+                return
+            
             else :
                 name = event.player.name
                 action = lang["破坏"]
@@ -1483,7 +1568,7 @@ class TianyanPlugin(Plugin):
 #    def blocktest(self,event: PlayerInteractEvent ):  
 #        player = event.player
 #        inv = player.inventory
-#        self.server.broadcast_message(ColorFormat.YELLOW + f"{event.player.name}" + "位置" f"{event.block.x}"" " + f"{event.block.y}"" " + f"{event.block.z}" + f"{event.block.type}" + f"{event.block.location.dimension.name}" + f"{event.item}" + f"{inv}")
+#        self.server.broadcast_message(ColorFormat.YELLOW + f"{event.player.name}" + "位置" f"{event.block.x}"" " + f"{event.block.y}"" " + f"{event.block.z}" + f"{event.block.type}" + f"{event.block.location.dimension.name}" + f"{event.item}")
 # 用于调试的事件
 #    @event_handler
 #    def test(self,event: BlockBreakEvent): 
