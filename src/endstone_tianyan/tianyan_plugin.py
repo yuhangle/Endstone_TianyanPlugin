@@ -1194,9 +1194,9 @@ class TianyanPlugin(Plugin):
             except:
                 size = 20
                 if isinstance(sender,Player):
-                    sender.send_message(f"{ColorFormat.YELLOW}{lang["未提供参数,使用默认参数20格区域计算"]}")
+                    sender.send_message(f'{ColorFormat.YELLOW}{lang["未提供参数,使用默认参数20格区域计算"]}')
                 else:
-                    self.server.logger.info(f"{ColorFormat.YELLOW}{lang["未提供参数,使用默认参数20格区域计算"]}")
+                    self.server.logger.info(f'{ColorFormat.YELLOW}{lang["未提供参数,使用默认参数20格区域计算"]}')
             actorlist = self.server.level.actors
             actor_info = []
             for actor in actorlist:
@@ -1290,42 +1290,42 @@ class TianyanPlugin(Plugin):
                     def print_info():
                         def print_info_on_click(sender):
                             sender.send_message(
-                                f"{ColorFormat.YELLOW}"
-                                f"{lang["最高密度区域在维度"]} {result['dim']},\n"
-                                f"{lang["中点坐标"]}:({result['mid'][0]:.1f}, {result['mid'][1]:.1f}, {result['mid'][2]:.1f}),\n"
-                                f"{lang["实体数量"]}:{result['count']}\n"
-                                f"{lang["数量最多的实体"]}: {result['entity_type']},\n"
-                                f"{lang["随机实体位置"]}: {result['entity_pos']}"
+                                f'{ColorFormat.YELLOW}'
+                                f'{lang["最高密度区域在维度"]} {result["dim"]},\n'
+                                f'{lang["中点坐标"]}:({result["mid"][0]:.1f}, {result["mid"][1]:.1f}, {result["mid"][2]:.1f}),\n'
+                                f'{lang["实体数量"]}:{result["count"]}\n'
+                                f'{lang["数量最多的实体"]}: {result["entity_type"]},\n'
+                                f'{lang["随机实体位置"]}: {result["entity_pos"]}'
                             )
                         return print_info_on_click
                     dim = result['dim']
                     match dim:
                         case "TheEnd":
                             dim="the_end"
-                    tp_button = ActionForm.Button(text=f"{lang["传送到该区域"]}",on_click=run_command(com=f'execute in {dim} run tp "{sender.name}" {result['entity_pos'][0]} {result['entity_pos'][1]} {result['entity_pos'][2]}'))
-                    print_button = ActionForm.Button(text=f"{lang["打印信息到聊天栏"]}",on_click=print_info())
+                    tp_button = ActionForm.Button(text=f'{lang["传送到该区域"]}',on_click=run_command(com=f'execute in {dim} run tp "{sender.name}" {result["entity_pos"][0]} {result["entity_pos"][1]} {result["entity_pos"][2]}'))
+                    print_button = ActionForm.Button(text=f'{lang["打印信息到聊天栏"]}',on_click=print_info())
                     
                     form = ActionForm(
-                        title=f"{lang["实体密度检测结果"]}",
-                        content=f"{ColorFormat.YELLOW}{lang["最高密度区域在维度"]} {result['dim']},\n{lang["中点坐标"]}:({result['mid'][0]:.1f}, {result['mid'][1]:.1f}, {result['mid'][2]:.1f}),\n{lang["实体数量"]}:{result['count']}\n{lang["数量最多的实体"]}: {result['entity_type']},\n{lang["随机实体位置"]}: {result['entity_pos']}",
+                        title=f'{lang["实体密度检测结果"]}',
+                        content=f'{ColorFormat.YELLOW}{lang["最高密度区域在维度"]} {result["dim"]},\n{lang["中点坐标"]}:({result["mid"][0]:.1f}, {result["mid"][1]:.1f}, {result["mid"][2]:.1f}),\n{lang["实体数量"]}:{result["count"]}\n{lang["数量最多的实体"]}: {result["entity_type"]},\n{lang["随机实体位置"]}: {result["entity_pos"]}',
                         buttons=[tp_button,print_button]
                     )
                     sender.send_form(form)
                 else:
                     
                     self.server.logger.info(
-                        f"{ColorFormat.YELLOW}"
-                        f"{lang["最高密度区域在维度"]} {result['dim']},\n"
-                        f"{lang["中点坐标"]}:({result['mid'][0]:.1f}, {result['mid'][1]:.1f}, {result['mid'][2]:.1f}),\n"
-                        f"{lang["实体数量"]}:{result['count']}\n"
-                        f"{lang["数量最多的实体"]}: {result['entity_type']},\n"
-                        f"{lang["随机实体位置"]}: {result['entity_pos']}"
+                        f'{ColorFormat.YELLOW}'
+                        f'{lang["最高密度区域在维度"]} {result["dim"]},\n'
+                        f'{lang["中点坐标"]}:({result["mid"][0]:.1f}, {result["mid"][1]:.1f}, {result["mid"][2]:.1f}),\n'
+                        f'{lang["实体数量"]}:{result["count"]}\n'
+                        f'{lang["数量最多的实体"]}: {result["entity_type"]},\n'
+                        f'{lang["随机实体位置"]}: {result["entity_pos"]}'
                     )
             else:
                 if isinstance(sender,Player):
-                    sender.send_message(f"{ColorFormat.YELLOW}{lang["当前没有检测到实体"]}")
+                    sender.send_message(f'{ColorFormat.YELLOW}{lang["当前没有检测到实体"]}')
                 else:
-                    self.server.logger.info(f"{ColorFormat.YELLOW}{lang["当前没有检测到实体"]}")
+                    self.server.logger.info(f'{ColorFormat.YELLOW}{lang["当前没有检测到实体"]}')
         
 # 容器交互和其它交互事件
     @event_handler
