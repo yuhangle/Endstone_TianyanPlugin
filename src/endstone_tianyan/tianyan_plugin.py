@@ -1,7 +1,7 @@
 from endstone.command import Command, CommandSender
 from endstone.plugin import Plugin
-from endstone import ColorFormat,Player
-from endstone.event import event_handler, BlockBreakEvent,PlayerInteractEvent,ActorKnockbackEvent,BlockPlaceEvent,PlayerCommandEvent,PlayerJoinEvent,PlayerChatEvent,PlayerInteractActorEvent
+from endstone import ColorFormat,Player,level
+from endstone.event import event_handler, BlockBreakEvent,PlayerInteractEvent,ActorKnockbackEvent,BlockPlaceEvent,PlayerCommandEvent,PlayerJoinEvent,PlayerChatEvent,PlayerInteractActorEvent,ActorSpawnEvent,ActorRemoveEvent,ActorDeathEvent
 import os
 from datetime import datetime
 import json
@@ -19,8 +19,9 @@ from endstone_tianyan import zh_lang, eng_lang
 from endstone_tianyan import ty_clean
 import requests
 from concurrent.futures import ThreadPoolExecutor, TimeoutError
+import random
 
-# 兼容性代码，用于兼容1.1.3版本之前的数据
+# 兼容性代码,用于兼容1.1.3版本之前的数据
 def ensure_blockdata_column():
     cursor.execute("PRAGMA table_info(interactions)")
     columns = [column[1] for column in cursor.fetchall()]  # 获取所有列的名称
@@ -31,10 +32,15 @@ def ensure_blockdata_column():
 subdir = "plugins/tianyan_data"
 if not os.path.exists(subdir):
     os.makedirs(subdir)
+# 玩家命令消息字典
+player_commands = defaultdict(list)
+player_message = defaultdict(list)
+# 配置数据文件的位置
 banlist = os.path.join('plugins/tianyan_data/banlist.json')
 banidlist = os.path.join('plugins/tianyan_data/banidlist.json')
 config_file = os.path.join(subdir, 'config.json')
 lang_file = os.path.join(subdir, 'lang.json')
+# 插件版本
 plugin_version = "v1.1.6"
 
 # GitHub上的版本信息URL
@@ -46,7 +52,7 @@ VERSION_URL = "https://api.github.com/repos/yuhangle/Endstone_TianyanPlugin/rele
 def can_access_google(timeout=3):
     try:
         response = requests.get('https://www.google.com', timeout=timeout)
-        # 如果响应状态码是200，表示成功访问
+        # 如果响应状态码是200,表示成功访问
         if response.status_code == 200:
             return True
     except requests.ConnectionError as ce:
@@ -72,7 +78,7 @@ if not os.path.exists(lang_file):
         default_lang = cn_default_lang
     with open(lang_file, 'w', encoding='utf-8') as f:
         json.dump(default_lang, f, ensure_ascii=False, indent=4)
-    print(f"{datetime.now().isoformat()}     [Tianyan] 未检测到语言文件，已创建默认语言文件 No language file was detected, and a default language file has been created.")
+    print(f'{datetime.now().isoformat()}     [Tianyan] 未检测到语言文件,已创建默认语言文件 No language file was detected, and a default language file has been created.')
 
 # 读取语言文件
 with open(lang_file, 'r', encoding='utf-8') as f:
@@ -95,7 +101,7 @@ else:
     if lang_version:
         # 语言版本相同 但是部分语言缺失
         if lang["lang-version"] == default_lang["lang-version"]:
-            print(f"{datetime.now().isoformat()}     [Tianyan] 天眼语言文件部分缺失! 使用默认语言文件 Part of the language file is missing! Using the default language file")
+            print(f'{datetime.now().isoformat()}     [Tianyan] 天眼语言文件部分缺失! 使用默认语言文件 Part of the language file is missing! Using the default language file')
             lang = default_lang
         # 语言文件为中文自动更新
         elif lang["language"] == "中文":
@@ -109,15 +115,15 @@ else:
             # 更新默认语言文件
             with open(lang_file, 'w', encoding='utf-8') as f:
                 json.dump(eng_default_lang, f, ensure_ascii=False, indent=4)
-            print(f"{datetime.now().isoformat()}     [Tianyan] Tianyan Plugin language is not latest! The language file has been automatically updated for you!")
+            print(f'{datetime.now().isoformat()}     [Tianyan] Tianyan Plugin language is not latest! The language file has been automatically updated for you!')
             lang = default_lang
         # 语言版本不同 提示更新语言文件
         else:
-            print(f"{datetime.now().isoformat()}     [Tianyan] 天眼语言版本不适配! 使用默认语言文件! 请下载新的语言文件! The language version is incompatible! Using the default language file! Please download the new language file!")
+            print(f'{datetime.now().isoformat()}     [Tianyan] 天眼语言版本不适配! 使用默认语言文件! 请下载新的语言文件! The language version is incompatible! Using the default language file! Please download the new language file!')
             lang = default_lang
     else:
         # 无语言版本 信息也缺失 使用默认语言
-        print(f"{datetime.now().isoformat()}     [Tianyan] 天眼语言文件部分缺失! 使用默认语言文件! 请下载新的语言文件! Part of the language file is missing! Using the default language file! Please download the new language file!")
+        print(f'{datetime.now().isoformat()}     [Tianyan] 天眼语言文件部分缺失! 使用默认语言文件! 请下载新的语言文件! Part of the language file is missing! Using the default language file! Please download the new language file!')
         lang = default_lang
     
 
@@ -144,7 +150,7 @@ if not os.path.exists(config_file):
 with open(config_file, 'r', encoding='utf-8') as f:
     config = json.load(f)
 
-# 兼容性代码，检测到1.1.5版本前或者错误的配置文件使用默认配置覆盖
+# 兼容性代码,检测到1.1.5版本前或者错误的配置文件使用默认配置覆盖
 if not "record_nature_block" in config:
     with open(config_file, 'w', encoding='utf-8') as f:
         json.dump(default_config, f, ensure_ascii=False, indent=4)
@@ -312,85 +318,94 @@ class TianyanPlugin(Plugin):
                 if response.status_code == 200:
                     latest_version = response.json().get('tag_name', 'Unknown')
                     if not latest_version == plugin_version:
-                        self.server.logger.info(f"{ColorFormat.YELLOW}{lang['\n\n天眼插件更新检测:\n插件版本与最新版本不符,请检查更新。最新版本为']}: {latest_version}\n")
+                        n_lang_1 = lang['\n\n天眼插件更新检测:\n插件版本与最新版本不符,请检查更新.最新版本为']
+                        self.server.logger.info(f'{ColorFormat.YELLOW}{n_lang_1}: {latest_version}\n')
                 else:
-                    self.server.logger.info(f"{ColorFormat.YELLOW}{lang['\n\n天眼插件更新检测:\n无法获取最新版本信息\n']}")
+                    n_lang_2 = lang['\n\n天眼插件更新检测:\n无法获取最新版本信息\n']
+                    self.server.logger.info(f'{ColorFormat.YELLOW}{n_lang_2}')
         except requests.exceptions.Timeout:
-            self.server.logger.info(f"{ColorFormat.YELLOW}{lang['\n\n天眼插件更新检测:\n更新检测超时\n']}")
+            n_lang_3 = lang['\n\n天眼插件更新检测:\n更新检测超时\n']
+            self.server.logger.info(f'{ColorFormat.YELLOW}{n_lang_3}')
         except Exception as e:
-            self.server.logger.info(f"{ColorFormat.YELLOW}{lang['\n\n天眼插件更新检测:\n检测更新时发生未知错误']}: {e}\n")
+            n_lang_4 = lang['\n\n天眼插件更新检测:\n检测更新时发生未知错误']
+            self.server.logger.info(f'{ColorFormat.YELLOW}{n_lang_4}: {e}\n')
 
 
     commands = {
         "ty": {
-            "description": lang["查询玩家&部分实体行为记录 --格式 /ty x坐标 y坐标 z坐标 时间（单位：小时） 半径"],
-            "usages": ["/ty [pos:pos] [float:float] [float:float]"],
-            "permissions": ["tianyan_plugin.command.ty"],
+            "description": lang["查询玩家&部分实体行为记录 --格式 /ty x坐标 y坐标 z坐标 时间(单位:小时) 半径"],
+            "usages": ["/ty [pos:pos] [time:float] [r:float]"],
+            "permissions": ["tianyan_plugin.command.member"],
         },
         "tyhelp": {
             "description": lang["查看天眼命令帮助信息"],
             "usages": ["/tyhelp"],
-            "permissions": ["tianyan_plugin.command.tyhelp"],
+            "permissions": ["tianyan_plugin.command.member"],
         },
         "tyban": {
             "description": lang["封禁一名玩家(仅管理员可用)"],
-            "usages": ["/tyban <msg: message> [msg: message]"],
-            "permissions": ["tianyan_plugin.command.tyban"],
+            "usages": ["/tyban <playername: message> [reason: message]"],
+            "permissions": ["tianyan_plugin.command.op"],
         },
         "tyunban": {
             "description": lang["从黑名单中移除玩家(仅管理员可用)"],
-            "usages": ["/tyunban <msg: message> [msg: message]"],
-            "permissions": ["tianyan_plugin.command.tyunban"],
+            "usages": ["/tyunban <playername: message>"],
+            "permissions": ["tianyan_plugin.command.op"],
         },
         "tybanlist": {
             "description": lang["列出所有加入黑名单的玩家(仅管理员可用)"],
             "usages": ["/tybanlist"],
-            "permissions": ["tianyan_plugin.command.tybanlist"],
+            "permissions": ["tianyan_plugin.command.op"],
         },
         "banid": {
             "description": lang["封禁设备ID(仅管理员可用)"],
-            "usages": ["/banid <msg: message>"],
-            "permissions": ["tianyan_plugin.command.banid"],
+            "usages": ["/banid <deviceID: message>"],
+            "permissions": ["tianyan_plugin.command.op"],
         },
         "unbanid": {
             "description": lang["从设备黑名单移除设备ID(仅管理员可用)"],
-            "usages": ["/unbanid <msg: message>"],
-            "permissions": ["tianyan_plugin.command.unbanid"],
+            "usages": ["/unbanid <deviceID: message>"],
+            "permissions": ["tianyan_plugin.command.op"],
         },
         "banidlist": {
             "description": lang["列出所有加入黑名单的设备ID(仅管理员可用)"],
             "usages": ["/banidlist"],
-            "permissions": ["tianyan_plugin.command.banidlist"],
+            "permissions": ["tianyan_plugin.command.op"],
         },
         "tys": {
-            "description": lang["关键词搜索 --格式 /tys 搜索类型  查询关键词 时间（单位：小时） (仅管理员可用)"],
-            "usages": ["/tys <msg: message> <msg: message> <float:float>"],
-            "permissions": ["tianyan_plugin.command.tys"],
+            "description": lang["关键词搜索 --格式 /tys 搜索类型  查询关键词 时间(单位:小时) (仅管理员可用)"],
+            "usages": ["/tys (player|action|object)<SearchType: searchtype> <msg: message> <time:float>"],
+            "permissions": ["tianyan_plugin.command.op"],
         },
         "tygui": {
             "description": lang["使用图形窗口查询玩家&部分实体行为记录"],
             "usages": ["/tygui"],
-            "permissions": ["tianyan_plugin.command.tygui"],
+            "permissions": ["tianyan_plugin.command.member"],
         },
         "tysgui": {
             "description": lang["使用图形窗口搜索关键词查询玩家&部分实体行为记录"],
             "usages": ["/tysgui"],
-            "permissions": ["tianyan_plugin.command.tysgui"],
+            "permissions": ["tianyan_plugin.command.member"],
         },
         "tyback": {
-            "description": lang["实验性功能 还原玩家直接方块放置破坏行为 --格式 /tyback 坐标 时间（单位：小时） 半径 实施行为的玩家名（可选）（仅管理员可用）"],
-            "usages": ["/tyback [pos:pos] <float:float> <float:float> [msg: message]"],
-            "permissions": ["tianyan_plugin.command.tyback"],
+            "description": lang["实验性功能 还原玩家直接方块放置破坏行为 --格式 /tyback 坐标 时间(单位:小时) 半径 实施行为的玩家名(可选)(仅管理员可用)"],
+            "usages": ["/tyback [pos:pos] <time:float> <r:float> [player: message]"],
+            "permissions": ["tianyan_plugin.command.op"],
         },
         "tyo": {
             "description": lang["搜查玩家物品栏 --格式 /tyo 玩家名"],
-            "usages": ["/tyo <msg:message>"],
-            "permissions": ["tianyan_plugin.command.tyo"],
+            "usages": ["/tyo <player:message>"],
+            "permissions": ["tianyan_plugin.command.op"],
         },
         "tyclean": {
             "description": lang["清理数据库 --格式 /tyclean 时间"],
-            "usages": ["/tyclean <msg:message>"],
-            "permissions": ["tianyan_plugin.command.tyclean"],
+            "usages": ["/tyclean <time:float>"],
+            "permissions": ["tianyan_plugin.command.op"],
+        },
+        "tydensity": {
+            "description": lang["检测实体密度最高的区域"],
+            "usages": ["/tydensity [int:int]"],
+            "permissions": ["tianyan_plugin.command.op"],
         }
         #"test": {
         #    "description": "2",
@@ -400,64 +415,12 @@ class TianyanPlugin(Plugin):
     }
 
     permissions = {
-        "tianyan_plugin.command.ty": {
-            "description": "查询玩家&部分实体行为记录",
-            "default": True, 
-        },
-        "tianyan_plugin.command.tyban": {
-            "description": "ban一名玩家",
+        "tianyan_plugin.command.op": {
+            "description": "op权限命令",
             "default": "op", 
         },
-        "tianyan_plugin.command.tyunban": {
-            "description": "从黑名单中移除玩家(仅管理员可用)",
-            "default": "op", 
-        },
-        "tianyan_plugin.command.tybanlist": {
-            "description": "列出所有被封禁的玩家(仅管理员可用)",
-            "default": "op", 
-        },
-        "tianyan_plugin.command.banid": {
-            "description": "封禁设备ID(仅管理员可用)",
-            "default": "op", 
-        },
-        "tianyan_plugin.command.unbanid": {
-            "description": "解除封禁设备ID(仅管理员可用)",
-            "default": "op", 
-        },
-        "tianyan_plugin.command.banidlist": {
-            "description": "列出所有被封禁的设备ID(仅管理员可用)",
-            "default": "op", 
-        },
-        "tianyan_plugin.command.tys": {
-            "description": "关键词搜索(仅管理员可用)",
-            "default": "op", 
-        },
-        "tianyan_plugin.command.tyhelp": {
-            "description": "查看天眼命令帮助信息",
-            "default": True, 
-        },
-        "tianyan_plugin.command.tygui": {
-            "description": "使用图形窗口查询玩家&部分实体行为记录",
-            "default": True, 
-        },
-        "tianyan_plugin.command.tysgui": {
-            "description": "使用图形窗口搜索关键词查询玩家&部分实体行为记录(仅管理员可用)",
-            "default": "op", 
-        },
-        "tianyan_plugin.command.tyo": {
-            "description": "搜查玩家物品栏",
-            "default": "op", 
-        },
-        "tianyan_plugin.command.tyback": {
-            "description": "设置回档",
-            "default": "op", 
-        },
-        "tianyan_plugin.command.tyclean": {
-            "description": "1",
-            "default": "op", 
-        },
-        "tianyan_plugin.command.test": {
-            "description": "1",
+        "tianyan_plugin.command.member": {
+            "description": "成员权限命令",
             "default": True, 
         }
     }
@@ -469,11 +432,11 @@ class TianyanPlugin(Plugin):
     def on_enable(self) -> None:
         # 更新检测
         self.check_for_updates()
-        self.logger.info(f"{ColorFormat.YELLOW}{lang["天眼插件已启用  版本"]} {plugin_version}")
-        self.logger.info(f"{ColorFormat.YELLOW}{lang["配置文件位于"]}plugins/tianyan_data/config.json")
-        self.logger.info(f"{ColorFormat.YELLOW}{lang["插件语言设定为"]} {language}")
-        self.logger.info(f"{ColorFormat.YELLOW}{lang["其余数据文件位于"]} plugins/tianyan_data/")
-        self.logger.info(f"{ColorFormat.YELLOW}{lang["项目更新地址"]} https://github.com/yuhangle/Endstone_TianyanPlugin")
+        self.logger.info(f'{ColorFormat.YELLOW}{lang["天眼插件已启用  版本"]} {plugin_version}')
+        self.logger.info(f'{ColorFormat.YELLOW}{lang["配置文件位于"]}plugins/tianyan_data/config.json')
+        self.logger.info(f'{ColorFormat.YELLOW}{lang["插件语言设定为"]} {language}')
+        self.logger.info(f'{ColorFormat.YELLOW}{lang["其余数据文件位于"]} plugins/tianyan_data/')
+        self.logger.info(f'{ColorFormat.YELLOW}{lang["项目更新地址"]} https://github.com/yuhangle/Endstone_TianyanPlugin')
         # 监听事件
         self.register_events(self)
 
@@ -484,36 +447,36 @@ class TianyanPlugin(Plugin):
     def on_command(self, sender: CommandSender, command: Command, args: list[str]) -> bool:
                         
         if command.name == "tyhelp":
-            sender.send_message(f"{ColorFormat.YELLOW}{lang["天眼命令使用方法"]}")
-            sender.send_message(f"{ColorFormat.YELLOW}{lang["使用/tyban 命令将一名玩家加入黑名单 格式 /tyban 玩家名 理由(选填)"]}")
-            sender.send_message(f"{ColorFormat.YELLOW}{lang["使用/tyunban 命令将一名玩家移出黑名单 格式 /tyunban 玩家名"]}")
-            sender.send_message(f"{ColorFormat.YELLOW}{lang["使用/banlist 命令列出所有被加入黑名单的玩家名"]}")
-            sender.send_message(f"{ColorFormat.YELLOW}{lang["使用/banid 命令将一名玩家的设备加入黑名单(当目标玩家设备在线时添加黑名单无法直接踢出，请使用其它方法踢出该玩家) 格式 /banid 设备ID"]}")
-            sender.send_message(f"{ColorFormat.YELLOW}{lang["使用/unbanid 命令将一名玩家的设备移出黑名单 格式 /unban 设备ID"]}")
-            sender.send_message(f"{ColorFormat.YELLOW}{lang["使用/banlist 命令列出所有被加入黑名单的玩家的设备ID"]}")
-            sender.send_message(f"{ColorFormat.YELLOW}{lang["使用 /ty 命令查询查询玩家&部分实体行为记录 格式 /ty x坐标 y坐标 z坐标 时间（单位：小时） 半径"]}")
-            sender.send_message(f"{ColorFormat.YELLOW}{lang["使用 /tys 命令使用关键词查询玩家&部分实体行为记录 格式 关键词搜索 格式 /tys 搜索类型  查询关键词 时间（单位：小时） (仅管理员可用)"]}")
-            sender.send_message(f"{ColorFormat.YELLOW}{lang["使用/tygui 命令使用图形窗口查询玩家&部分实体行为记录"]}")
-            sender.send_message(f"{ColorFormat.YELLOW}{lang["使用/tysgui 命令使用图形窗口搜索关键词查询玩家&部分实体行为记录 (仅管理员可用)"]}")
-            sender.send_message(f"{ColorFormat.YELLOW}{lang["tys命令参数解析 搜索类型:player action object(玩家或行为实施者 行为 被实施行为的对象) 搜索关键词:玩家名或行为实施者名 交互 破坏 攻击 放置 被实施行为的对象名"]}")
-            sender.send_message(f"{ColorFormat.YELLOW}{lang["使用 /tyo 命令查看玩家物品栏 格式 /tyo 玩家名"]}")
-            sender.send_message(f"{ColorFormat.YELLOW}{lang["实验性功能 使用/tyback 命令还原玩家直接方块放置破坏行为 格式 /tyback 坐标 时间（单位：小时） 半径 实施行为的玩家名（可选）（仅管理员可用）"]}")
+            sender.send_message(f'{ColorFormat.YELLOW}{lang["天眼命令使用方法"]}')
+            sender.send_message(f'{ColorFormat.YELLOW}{lang["使用/tyban 命令将一名玩家加入黑名单 格式 /tyban 玩家名 理由(选填)"]}')
+            sender.send_message(f'{ColorFormat.YELLOW}{lang["使用/tyunban 命令将一名玩家移出黑名单 格式 /tyunban 玩家名"]}')
+            sender.send_message(f'{ColorFormat.YELLOW}{lang["使用/banlist 命令列出所有被加入黑名单的玩家名"]}')
+            sender.send_message(f'{ColorFormat.YELLOW}{lang["使用/banid 命令将一名玩家的设备加入黑名单(当目标玩家设备在线时添加黑名单无法直接踢出,请使用其它方法踢出该玩家) 格式 /banid 设备ID"]}')
+            sender.send_message(f'{ColorFormat.YELLOW}{lang["使用/unbanid 命令将一名玩家的设备移出黑名单 格式 /unban 设备ID"]}')
+            sender.send_message(f'{ColorFormat.YELLOW}{lang["使用/banlist 命令列出所有被加入黑名单的玩家的设备ID"]}')
+            sender.send_message(f'{ColorFormat.YELLOW}{lang["使用 /ty 命令查询查询玩家&部分实体行为记录 格式 /ty x坐标 y坐标 z坐标 时间(单位:小时) 半径"]}')
+            sender.send_message(f'{ColorFormat.YELLOW}{lang["使用 /tys 命令使用关键词查询玩家&部分实体行为记录 格式 关键词搜索 格式 /tys 搜索类型  查询关键词 时间(单位:小时) (仅管理员可用)"]}')
+            sender.send_message(f'{ColorFormat.YELLOW}{lang["使用/tygui 命令使用图形窗口查询玩家&部分实体行为记录"]}')
+            sender.send_message(f'{ColorFormat.YELLOW}{lang["使用/tysgui 命令使用图形窗口搜索关键词查询玩家&部分实体行为记录 (仅管理员可用)"]}')
+            sender.send_message(f'{ColorFormat.YELLOW}{lang["tys命令参数解析 搜索类型:player action object(玩家或行为实施者 行为 被实施行为的对象) 搜索关键词:玩家名或行为实施者名 交互 破坏 攻击 放置 被实施行为的对象名"]}')
+            sender.send_message(f'{ColorFormat.YELLOW}{lang["使用 /tyo 命令查看玩家物品栏 格式 /tyo 玩家名"]}')
+            sender.send_message(f'{ColorFormat.YELLOW}{lang["实验性功能 使用/tyback 命令还原玩家直接方块放置破坏行为 格式 /tyback 坐标 时间(单位:小时) 半径 实施行为的玩家名(可选)(仅管理员可用)"]}')
             
         elif command.name == "ty":
             if len(args) <= 2:
                 if not isinstance(sender, Player):
-                    self.logger.info(f"{ColorFormat.RED}{lang["命令格式错误！请检查命令是否正确；如果使用~ ~ ~，请直接输入坐标"]}")
+                    self.logger.info(f'{ColorFormat.RED}{lang["命令格式错误!请检查命令是否正确;如果使用~ ~ ~,请直接输入坐标"]}')
                 else:
-                    sender.send_error_message(lang["命令格式错误！请检查命令是否正确；如果使用~ ~ ~，请直接输入坐标"])
+                    sender.send_error_message(lang["命令格式错误!请检查命令是否正确;如果使用~ ~ ~,请直接输入坐标"])
                 return True
             elif "~" in args[0]:
                 if not isinstance(sender, Player):
-                    self.logger.info(f"{ColorFormat.RED}{lang["命令格式错误！请检查命令是否正确；如果使用~ ~ ~，请直接输入坐标"]}")
+                    self.logger.info(f'{ColorFormat.RED}{lang["命令格式错误!请检查命令是否正确;如果使用~ ~ ~,请直接输入坐标"]}')
                 else:
-                    sender.send_error_message(lang["命令格式错误！请检查命令是否正确；如果使用~ ~ ~，请直接输入坐标"])
+                    sender.send_error_message(lang["命令格式错误!请检查命令是否正确;如果使用~ ~ ~,请直接输入坐标"])
             elif float(args[2]) > 100:
                 if not isinstance(sender, Player):
-                    self.logger.info(f"{ColorFormat.RED}{lang["查询半径最大值为100 !"]}")
+                    self.logger.info(f'{ColorFormat.RED}{lang["查询半径最大值为100 !"]}')
                 else:
                     sender.send_error_message(lang["查询半径最大值为100 !"])
             else:
@@ -552,14 +515,14 @@ class TianyanPlugin(Plugin):
                 # 处理结果
                 if not results:
                     if not isinstance(sender, Player):
-                        self.logger.info(f"{ColorFormat.YELLOW}{lang["未查询到任何结果。"]}")
+                        self.logger.info(f'{ColorFormat.YELLOW}{lang["未查询到任何结果."]}')
                     else:
-                        sender.send_message(f"{ColorFormat.YELLOW}{lang["未查询到任何结果。"]}")
+                        sender.send_message(f'{ColorFormat.YELLOW}{lang["未查询到任何结果."]}')
                 else:
                     if not isinstance(sender, Player):
-                        self.logger.info(f"{ColorFormat.YELLOW}{lang["已为您查询到此坐标半径"]}{r}{lang["格"]}{times}{lang["小时内的玩家&部分实体行为记录"]}")
+                        self.logger.info(f'{ColorFormat.YELLOW}{lang["已为您查询到此坐标半径"]}{r}{lang["格"]}{times}{lang["小时内的玩家&部分实体行为记录"]}')
                     else:
-                        sender.send_message(f"{ColorFormat.YELLOW}{lang["已为您查询到此坐标半径"]}{r}{lang["格"]}{times}{lang["小时内的玩家&部分实体行为记录"]}，{lang["请通过弹窗查看"]}")
+                        sender.send_message(f'{ColorFormat.YELLOW}{lang["已为您查询到此坐标半径"]}{r}{lang["格"]}{times}{lang["小时内的玩家&部分实体行为记录"]},{lang["请通过弹窗查看"]}')
                     output_message = ""  # 创建一个空字符串用于存储所有输出信息
                     for item in results:
                         name = item['name']
@@ -570,7 +533,7 @@ class TianyanPlugin(Plugin):
                         action = item['action']
                         
                         # 格式化单条记录的信息
-                        message = f"{ColorFormat.YELLOW} {lang["行为实施者"]}: {name} \n {lang["行为"]}: {action} \n {lang["坐标"]}: {coordinates} \n {lang["时间"]}: {time} \n {lang["对象类型"]}: {type} \n {lang["维度"]}: {world}\n"
+                        message = f'{ColorFormat.YELLOW} {lang["行为实施者"]}: {name} \n {lang["行为"]}: {action} \n {lang["坐标"]}: {coordinates} \n {lang["时间"]}: {time} \n {lang["对象类型"]}: {type} \n {lang["维度"]}: {world}\n'
                         output_message += message + "-" * 20 + "\n"  # 将单条记录添加到总输出中                  
                     if not isinstance(sender, Player):
                         self.logger.info(output_message)
@@ -595,15 +558,15 @@ class TianyanPlugin(Plugin):
                                 def up_button_click():
                                     def on_click(sender):
                                         nonlocal page  # 使用 nonlocal 声明 page 是外部作用域的变量
-                                        if page == 0:  # 如果在第一页，跳转到最后一页
+                                        if page == 0:  # 如果在第一页,跳转到最后一页
                                             page = len(segments) - 1
                                         else:
                                             page -= 1
                                         show(sender)
                                     return on_click
                                 
-                                next =  ActionForm.Button(text=f"{lang["下一页"]}",on_click=next_button_click())
-                                up =  ActionForm.Button(text=f"{lang["上一页"]}",on_click=up_button_click())
+                                next =  ActionForm.Button(text=f'{lang["下一页"]}',on_click=next_button_click())
+                                up =  ActionForm.Button(text=f'{lang["上一页"]}',on_click=up_button_click())
                                     
                             # 显示第一页窗口
                                 self.server.get_player(sender.name).send_form(
@@ -643,7 +606,7 @@ class TianyanPlugin(Plugin):
 
                 # 检查文件是否存在
                 if not os.path.exists(banlist):
-                    # 如果文件不存在，创建一个空的黑名单文件
+                    # 如果文件不存在,创建一个空的黑名单文件
                     with open(banlist, 'w') as file:
                         json.dump({}, file)
 
@@ -656,10 +619,10 @@ class TianyanPlugin(Plugin):
                         entry = blacklist[playername]
                         reason = entry.get("reason")
                         timestamp = entry.get("timestamp")
-                        self.logger.info(f"{lang["玩家"]} {playername} {lang["已经在"]}{timestamp}{lang["被添加至黑名单中了，理由是："]}{reason}，{lang["请勿重复添加"]}")
+                        self.logger.info(f'{lang["玩家"]} {playername} {lang["已经在"]}{timestamp}{lang["被添加至黑名单中了,理由是:"]}{reason},{lang["请勿重复添加"]}')
                     else:
                         reason = blacklist[playername]
-                        sender.send_message(f"{lang["玩家"]} {playername} {lang["已经在"]}{timestamp}{lang["被添加至黑名单中了，理由是："]}{reason}，{lang["请勿重复添加"]}")
+                        sender.send_message(f'{lang["玩家"]} {playername} {lang["已经在"]}{timestamp}{lang["被添加至黑名单中了,理由是:"]}{reason},{lang["请勿重复添加"]}')
                 else:
                     # 将玩家名和理由写入黑名单
                     timestamp = datetime.now().isoformat()  # 使用当前时间戳作为默认值
@@ -675,10 +638,10 @@ class TianyanPlugin(Plugin):
                         json.dump(blacklist, file, ensure_ascii=False, indent=4)
                     
                     if not isinstance(sender, Player):
-                        self.logger.info(f"{lang["玩家"]} {playername} {lang["已被加入黑名单，理由"]}:{reason}")
-                        self.server.dispatch_command(self.server.command_sender,f'kick "{playername}" "理由：{reason}"')
+                        self.logger.info(f'{lang["玩家"]} {playername} {lang["已被加入黑名单,理由"]}:{reason}')
+                        self.server.dispatch_command(self.server.command_sender,f'kick "{playername}" "理由:{reason}"')
                     else:
-                        sender.send_message(f"{lang["玩家"]} {playername} {lang["已被加入黑名单，理由"]}:{reason}")
+                        sender.send_message(f'{lang["玩家"]} {playername} {lang["已被加入黑名单,理由"]}:{reason}')
                         sender.perform_command(f'kick "{playername}" "{lang["理由"]}:{reason}"')
         
         elif command.name == "tyunban":
@@ -697,13 +660,13 @@ class TianyanPlugin(Plugin):
                 playername = yplayername.strip('"')
                 # 检查文件是否存在
                 if not os.path.exists(banlist):
-                    # 如果文件不存在，创建一个空的黑名单文件
+                    # 如果文件不存在,创建一个空的黑名单文件
                     with open(banlist, 'w',encoding='utf-8') as file:
                         json.dump({}, file)
                     if not isinstance(sender, Player):
-                        self.logger.info(lang["黑名单文件不存在，已自动创建"])
+                        self.logger.info(lang["黑名单文件不存在,已自动创建"])
                     else:
-                        sender.send_error_message(lang["黑名单文件不存在，已自动创建"])
+                        sender.send_error_message(lang["黑名单文件不存在,已自动创建"])
                 else:
                     # 读取黑名单文件
                     with open(banlist, 'r', encoding='utf-8') as file:
@@ -716,14 +679,14 @@ class TianyanPlugin(Plugin):
                         with open(banlist, 'w', encoding='utf-8') as file:  # 指定编码为 UTF-8
                             json.dump(blacklist, file, ensure_ascii=False, indent=4)
                         if not isinstance(sender, Player):
-                            self.logger.info(f"{lang["玩家"]} {playername} {lang["已从黑名单中删除"]}。")
+                            self.logger.info(f'{lang["玩家"]} {playername} {lang["已从黑名单中删除"]}.')
                         else:
-                            sender.send_error_message(f"{lang["玩家"]} {playername} {lang["已从黑名单中删除"]}。")
+                            sender.send_error_message(f'{lang["玩家"]} {playername} {lang["已从黑名单中删除"]}.')
                     else:
                         if not isinstance(sender, Player):
-                            self.logger.info(f"{lang["玩家"]} {playername} {lang["不存在于黑名单中"]}。")
+                            self.logger.info(f'{lang["玩家"]} {playername} {lang["不存在于黑名单中"]}.')
                         else:
-                            sender.send_error_message(f"{lang["玩家"]} {playername} {lang["不存在于黑名单中"]}。")
+                            sender.send_error_message(f'{lang["玩家"]} {playername} {lang["不存在于黑名单中"]}.')
         elif command.name == "tybanlist":
             # 检查文件是否存在
             if not os.path.exists(banlist):
@@ -747,9 +710,9 @@ class TianyanPlugin(Plugin):
                         reason = entry.get("reason")
                         timestamp = entry.get("timestamp")
                         if not isinstance(sender, Player):
-                            self.logger.info(f"{lang["玩家"]} {playername} {lang["于"]}{timestamp}{lang["被封禁，理由"]}：{reason}")
+                            self.logger.info(f'{lang["玩家"]} {playername} {lang["于"]}{timestamp}{lang["被封禁,理由"]}:{reason}')
                         else:
-                            sender.send_error_message(f"{lang["玩家"]} {playername} {lang["于"]}{timestamp}{lang["被封禁，理由"]}：{reason}")
+                            sender.send_error_message(f'{lang["玩家"]} {playername} {lang["于"]}{timestamp}{lang["被封禁,理由"]}:{reason}')
 
         elif command.name == "banid":
             if len(args) == 0:
@@ -768,7 +731,7 @@ class TianyanPlugin(Plugin):
 
                 # 检查文件是否存在
                 if not os.path.exists(banidlist):
-                    # 如果文件不存在，创建一个空的黑名单文件
+                    # 如果文件不存在,创建一个空的黑名单文件
                     with open(banidlist, 'w') as file:
                         json.dump({}, file)
 
@@ -780,11 +743,11 @@ class TianyanPlugin(Plugin):
                     if not isinstance(sender, Player):
                         entry = blackidlist[device_id]
                         timestamp = entry.get("timestamp")
-                        self.logger.info(f"{lang["设备ID"]} {device_id} {lang["已经在"]}{timestamp}{lang["被添加至设备ID黑名单中了,请勿重复添加"]}")
+                        self.logger.info(f'{lang["设备ID"]} {device_id} {lang["已经在"]}{timestamp}{lang["被添加至设备ID黑名单中了,请勿重复添加"]}')
                     else:
                         entry = blackidlist[device_id]
                         timestamp = entry.get("timestamp")
-                        sender.send_error_message(f"{lang["设备ID"]} {device_id} {lang["已经在"]}{timestamp}{lang["被添加至设备ID黑名单中了,请勿重复添加"]}")
+                        sender.send_error_message(f'{lang["设备ID"]} {device_id} {lang["已经在"]}{timestamp}{lang["被添加至设备ID黑名单中了,请勿重复添加"]}')
                 else:
                     # 将设备id写入黑名单
                     timestamp = datetime.now().isoformat()  # 使用当前时间戳作为默认值
@@ -798,9 +761,9 @@ class TianyanPlugin(Plugin):
                     with open(banidlist, 'w', encoding='utf-8') as file:  # 指定编码为 UTF-8
                         json.dump(blackidlist, file, ensure_ascii=False, indent=4)
                     if not isinstance(sender, Player):
-                        self.logger.info(f"{lang["设备ID"]} {device_id} {lang["已被加入黑名单"]}")
+                        self.logger.info(f'{lang["设备ID"]} {device_id} {lang["已被加入黑名单"]}')
                     else:
-                        sender.send_error_message(f"{lang["设备ID"]} {device_id} {lang["已被加入黑名单"]}")
+                        sender.send_error_message(f'{lang["设备ID"]} {device_id} {lang["已被加入黑名单"]}')
         
         elif command.name == "unbanid":
             if len(args) == 0:
@@ -817,7 +780,7 @@ class TianyanPlugin(Plugin):
                 device_id = args[0]
                 # 检查文件是否存在
                 if not os.path.exists(banlist):
-                    # 如果文件不存在，创建一个空的黑名单文件
+                    # 如果文件不存在,创建一个空的黑名单文件
                     with open(banidlist, 'w',encoding='utf-8') as file:
                         json.dump({}, file)
                     if not isinstance(sender, Player):
@@ -836,14 +799,14 @@ class TianyanPlugin(Plugin):
                         with open(banidlist, 'w', encoding='utf-8') as file:  # 指定编码为 UTF-8
                             json.dump(blackidlist, file, ensure_ascii=False, indent=4)
                         if not isinstance(sender, Player):
-                            self.logger.info(f"{lang["设备ID"]} {device_id} {lang["已从黑名单中删除"]}")
+                            self.logger.info(f'{lang["设备ID"]} {device_id} {lang["已从黑名单中删除"]}')
                         else:
-                            sender.send_message(f"{lang["设备ID"]} {device_id} {lang["已从黑名单中删除"]}")
+                            sender.send_message(f'{lang["设备ID"]} {device_id} {lang["已从黑名单中删除"]}')
                     else:
                         if not isinstance(sender, Player):
-                            self.logger.info(f"{lang["设备ID"]} {device_id} {lang["不存在于黑名单中"]}")
+                            self.logger.info(f'{lang["设备ID"]} {device_id} {lang["不存在于黑名单中"]}')
                         else:
-                            sender.send_error_message(f"{lang["设备ID"]} {device_id} {lang["不存在于黑名单中"]}")
+                            sender.send_error_message(f'{lang["设备ID"]} {device_id} {lang["不存在于黑名单中"]}')
                             
         elif command.name == "banidlist":
             # 检查文件是否存在
@@ -867,21 +830,21 @@ class TianyanPlugin(Plugin):
                     for device_id, entry in blackidlist.items():
                         timestamp = entry.get("timestamp")
                         if not isinstance(sender, Player):
-                            self.logger.info(f"{lang["设备ID"]} {device_id} {lang["于"]}{timestamp}{lang["被封禁"]}")
+                            self.logger.info(f'{lang["设备ID"]} {device_id} {lang["于"]}{timestamp}{lang["被封禁"]}')
                         else:
-                            sender.send_message(f"{lang["设备ID"]} {device_id} {lang["于"]}{timestamp}{lang["被封禁"]}")
+                            sender.send_message(f'{lang["设备ID"]} {device_id} {lang["于"]}{timestamp}{lang["被封禁"]}')
         elif command.name == "tys":
             if len(args) <= 2:
                 if not isinstance(sender, Player):
-                    self.logger.info(f"{ColorFormat.RED}{lang["命令格式错误！请检查命令是否正确"]}")
+                    self.logger.info(f'{ColorFormat.RED}{lang["命令格式错误!请检查命令是否正确"]}')
                 else:
-                    sender.send_error_message(lang["命令格式错误！请检查命令是否正确"])
+                    sender.send_error_message(lang["命令格式错误!请检查命令是否正确"])
                 return True
             elif args[0] not in ["player", "action", "object"]:  # 玩家、行为、对象
                 if not isinstance(sender, Player):
-                    self.logger.info(f"{ColorFormat.RED}{lang["命令格式错误！未知的参数"]} {args[0]}")
+                    self.logger.info(f'{ColorFormat.RED}{lang["命令格式错误!未知的参数"]} {args[0]}')
                 else:
-                    sender.send_error_message(f"{lang["命令格式错误！未知的参数"]} {args[0]}")
+                    sender.send_error_message(f'{lang["命令格式错误!未知的参数"]} {args[0]}')
             else:
                 searchtype = args[0]  # 搜索类型
                 searchobject = args[1]  # 搜索关键词
@@ -891,11 +854,11 @@ class TianyanPlugin(Plugin):
                             
                 def search_db(keyword, time, stype):
                     """
-                    从 SQLite 数据库中查询符合条件的记录。
+                    从 SQLite 数据库中查询符合条件的记录.
 
                     Args:
                         keyword: 搜索关键词
-                        time: 时间范围（单位：小时）
+                        time: 时间范围(单位:小时)
                         stype: 搜索字段类型
 
                     Returns:
@@ -929,18 +892,18 @@ class TianyanPlugin(Plugin):
                     results = search_db(keyword, time, stype)
                     if not results:
                         if not isinstance(sender, Player):
-                            self.logger.info(f"{ColorFormat.YELLOW}{lang["未查询到任何结果。"]}")
+                            self.logger.info(f'{ColorFormat.YELLOW}{lang["未查询到任何结果."]}')
                         else:
-                            sender.send_message(f"{ColorFormat.YELLOW}{lang["未查询到任何结果。"]}")
+                            sender.send_message(f'{ColorFormat.YELLOW}{lang["未查询到任何结果."]}')
                     else:
                         if not isinstance(sender, Player):
-                            self.logger.info(f"{ColorFormat.YELLOW}\n{lang["已为您查询到关键词"]} {keyword} {lang["的以下相关内容"]}" + "-" * 20)
+                            self.logger.info(f'{ColorFormat.YELLOW}\n{lang["已为您查询到关键词"]} {keyword} {lang["的以下相关内容"]}" + "-" * 20')
                         else:
-                            sender.send_message(f"{ColorFormat.YELLOW}{lang["已为您查询到关键词"]} {keyword} {lang["的以下相关内容"]},{lang["请通过弹窗查看"]}\n")
+                            sender.send_message(f'{ColorFormat.YELLOW}{lang["已为您查询到关键词"]} {keyword} {lang["的以下相关内容"]},{lang["请通过弹窗查看"]}\n')
                         output_message = ""  # 创建一个空字符串用于存储所有输出信息
                         for record in results:
                         # 格式化单条记录的信息
-                            message = f" {ColorFormat.YELLOW}{lang["行为实施者"]}: {record['name']} \n {lang["行为"]}: {record['action']} \n {lang["坐标"]}: {record['coordinates']} \n {lang["时间"]}: {record['time']} \n {lang["对象类型"]}: {record['type']} \n {lang["维度"]}: {record['world']}\n"
+                            message = f' {ColorFormat.YELLOW}{lang["行为实施者"]}: {record["name"]} \n {lang["行为"]}: {record["action"]} \n {lang["坐标"]}: {record["coordinates"]} \n {lang["时间"]}: {record["time"]} \n {lang["对象类型"]}: {record["type"]} \n {lang["维度"]}: {record["world"]}\n'
                             output_message += message + "-" * 20 + "\n"  # 将单条记录添加到总输出中   
                         if not isinstance(sender, Player):
                             self.logger.info(output_message)
@@ -964,15 +927,15 @@ class TianyanPlugin(Plugin):
                                     def up_button_click():
                                         def on_click(sender):
                                             nonlocal page  # 使用 nonlocal 声明 page 是外部作用域的变量
-                                            if page == 0:  # 如果在第一页，跳转到最后一页
+                                            if page == 0:  # 如果在第一页,跳转到最后一页
                                                 page = len(segments) - 1
                                             else:
                                                 page -= 1
                                             show(sender)
                                         return on_click
                                     
-                                    next =  ActionForm.Button(text=f"{lang["下一页"]}",on_click=next_button_click())
-                                    up =  ActionForm.Button(text=f"{lang["上一页"]}",on_click=up_button_click())
+                                    next =  ActionForm.Button(text=f'{lang["下一页"]}',on_click=next_button_click())
+                                    up =  ActionForm.Button(text=f'{lang["上一页"]}',on_click=up_button_click())
                                         
                                 # 显示第一页窗口
                                     self.server.get_player(sender.name).send_form(
@@ -1022,7 +985,7 @@ class TianyanPlugin(Plugin):
                         title=f'{ColorFormat.YELLOW}{lang["天眼查询菜单"]}',
                         controls=[
                             TextInput(label= lang["坐标"], placeholder= lang['输入查询坐标']),
-                            TextInput(label= lang['时间'], placeholder= lang['输入查询时间（单位小时）']),
+                            TextInput(label= lang['时间'], placeholder= lang['输入查询时间(单位小时)']),
                             TextInput(label= lang['半径'], placeholder= lang['输入查询半径'])
                         ],
                         on_submit=submit
@@ -1036,7 +999,7 @@ class TianyanPlugin(Plugin):
                 submit = lambda player, json_str: (
                     #self.logger.info(f"Received JSON: {json_str}"),  # 记录日志
                     player.perform_command(
-                        f'tys {['player','action','object'][__import__('json').loads(json_str)[0]]} "{__import__("json").loads(json_str)[1]}" {__import__("json").loads(json_str)[2]}'
+                        f'tys {["player","action","object"][__import__("json").loads(json_str)[0]]} "{__import__("json").loads(json_str)[1]}" {__import__("json").loads(json_str)[2]}'
                     )
                 )
                 self.server.get_player(sender.name).send_form(
@@ -1045,7 +1008,7 @@ class TianyanPlugin(Plugin):
                         controls=[
                             Dropdown(label= lang['选择搜索类型(玩家或行为实施者 行为 被实施行为的对象)'],options=['player','action','object']),
                             TextInput(label= lang['关键词'], placeholder= lang['输入查询关键词']),
-                            TextInput(label= lang['时间'], placeholder= lang['输入查询时间（单位小时）']),
+                            TextInput(label= lang['时间'], placeholder= lang['输入查询时间(单位小时)']),
                         ],
                         on_submit=submit
                     )
@@ -1066,41 +1029,41 @@ class TianyanPlugin(Plugin):
                     # 打印所有物品信息
                     output_item = ""
                     for item_info in all_item:
-                        message = f"{ColorFormat.YELLOW}{lang["物品槽位"]}:{item_info['num']} \n {lang["物品名称"]}:{item_info['item']} \n {lang["数量"]}:{item_info['amount']}\n"
+                        message = f'{ColorFormat.YELLOW}{lang["物品槽位"]}:{item_info["num"]} \n {lang["物品名称"]}:{item_info["item"]} \n {lang["数量"]}:{item_info["amount"]}\n'
                         output_item += message + "-" * 20 + "\n"  # 将单条记录添加到总输出中
                     if not isinstance(sender, Player):
                         self.server.logger.info(f"{ColorFormat.YELLOW}\n{output_item}")
                     else:
                         if output_item == "":
                             if not isinstance(sender, Player):
-                                self.logger.info(f"{ColorFormat.RED}{lang["此玩家的物品栏里没有东西"]}")
+                                self.logger.info(f'{ColorFormat.RED}{lang["此玩家的物品栏里没有东西"]}')
                             else:
-                                sender.send_error_message(f"{ColorFormat.RED}{lang["此玩家的物品栏里没有东西"]}")
+                                sender.send_error_message(f'{ColorFormat.RED}{lang["此玩家的物品栏里没有东西"]}')
                         else:
-                            self.server.get_player(sender.name).send_form(ActionForm(title=f"§1{playername}{lang["的物品栏"]}",content=output_item))
+                            self.server.get_player(sender.name).send_form(ActionForm(title=f'§1{playername}{lang["的物品栏"]}',content=output_item))
                 except:
                     if not isinstance(sender, Player):
-                        self.logger.info(f"{ColorFormat.RED}{lang["命令错误，请检查参数及玩家是否在线"]}")
+                        self.logger.info(f'{ColorFormat.RED}{lang["命令错误,请检查参数及玩家是否在线"]}')
                     else:
-                        sender.send_error_message(f"{ColorFormat.RED}{lang["命令错误，请检查参数及玩家是否在线"]}")
+                        sender.send_error_message(f'{ColorFormat.RED}{lang["命令错误,请检查参数及玩家是否在线"]}')
             else:
                 pass
             
         elif command.name == "tyback":
             if len(args) < 3:
                 if not isinstance(sender, Player):
-                    self.logger.info(f"{ColorFormat.RED}{lang["命令格式错误！请检查命令是否正确；如果使用~ ~ ~，请直接输入坐标"]}")
+                    self.logger.info(f'{ColorFormat.RED}{lang["命令格式错误!请检查命令是否正确;如果使用~ ~ ~,请直接输入坐标"]}')
                 else:
-                    sender.send_error_message(lang["命令格式错误！请检查命令是否正确；如果使用~ ~ ~，请直接输入坐标"])
+                    sender.send_error_message(lang["命令格式错误!请检查命令是否正确;如果使用~ ~ ~,请直接输入坐标"])
                 return True
             elif "~" in args[0]:
                 if not isinstance(sender, Player):
-                    self.logger.info(f"{ColorFormat.RED}{lang["命令格式错误！请检查命令是否正确；如果使用~ ~ ~，请直接输入坐标"]}")
+                    self.logger.info(f'{ColorFormat.RED}{lang["命令格式错误!请检查命令是否正确;如果使用~ ~ ~,请直接输入坐标"]}')
                 else:
-                    sender.send_error_message(lang["命令格式错误！请检查命令是否正确；如果使用~ ~ ~，请直接输入坐标"])
+                    sender.send_error_message(lang["命令格式错误!请检查命令是否正确;如果使用~ ~ ~,请直接输入坐标"])
             elif float(args[2]) > 100:
                 if not isinstance(sender, Player):
-                    self.logger.info(f"{ColorFormat.RED}{lang["半径最大值为100 !"]}")
+                    self.logger.info(f'{ColorFormat.RED}{lang["半径最大值为100 !"]}')
                 else:
                     sender.send_error_message(lang["半径最大值为100 !"])
             else:
@@ -1171,14 +1134,14 @@ class TianyanPlugin(Plugin):
                 # 处理结果
                 if not results:
                     if not isinstance(sender, Player):
-                        self.logger.info(f"{ColorFormat.RED}{lang["控制台无法使用该命令"]}")
+                        self.logger.info(f'{ColorFormat.RED}{lang["控制台无法使用该命令"]}')
                     else:
-                        sender.send_message(f"{ColorFormat.YELLOW}{lang["无记录数据"]}")
+                        sender.send_message(f'{ColorFormat.YELLOW}{lang["无记录数据"]}')
                 else:
                     if not isinstance(sender, Player):
-                        self.logger.info(f"{ColorFormat.RED}{lang["控制台无法使用该命令"]}")
+                        self.logger.info(f'{ColorFormat.RED}{lang["控制台无法使用该命令"]}')
                     else:
-                        sender.send_message(f"{ColorFormat.YELLOW}{lang["开始还原"]}{r}{lang["格"]}{times}{lang["小时内的方块"]}")
+                        sender.send_message(f'{ColorFormat.YELLOW}{lang["开始还原"]}{r}{lang["格"]}{times}{lang["小时内的方块"]}')
                         
                         for item in results:
                             
@@ -1205,7 +1168,7 @@ class TianyanPlugin(Plugin):
                     try:
                         clean_time = float(args[0])
                     except:
-                        self.server.logger.info(f"{lang['参数错误']}")
+                        self.server.logger.info(f'{lang["参数错误"]}')
                         return
                     # 运行清理函数
                     self.start_tyclean(clean_time)
@@ -1213,16 +1176,156 @@ class TianyanPlugin(Plugin):
                     try:
                         clean_time = float(args[0])
                     except:
-                        sender.send_error_message(f"{lang['参数错误']}")
+                        sender.send_error_message(f'{lang["参数错误"]}')
                         return
                     # 运行清理函数
                     self.start_tyclean(clean_time)
             else:
                 if not isinstance(sender, Player):
                     pass
-                    #self.server.logger.info(f"{lang['参数错误']}")
+                    #self.server.logger.info(f'{lang['参数错误']}')
                 else:
-                    sender.send_error_message(f"{lang['参数错误']}")
+                    sender.send_error_message(f'{lang["参数错误"]}')
+                    
+        # 实体密度计算
+        elif command.name == "tydensity":
+            try:
+                size = int(args[0])
+            except:
+                size = 20
+                if isinstance(sender,Player):
+                    sender.send_message(f"{ColorFormat.YELLOW}{lang["未提供参数,使用默认参数20格区域计算"]}")
+                else:
+                    self.server.logger.info(f"{ColorFormat.YELLOW}{lang["未提供参数,使用默认参数20格区域计算"]}")
+            actorlist = self.server.level.actors
+            actor_info = []
+            for actor in actorlist:
+                actor_type = actor.type
+                actor_x = actor.location.x
+                actor_y = actor.location.y
+                actor_z = actor.location.z
+                actor_dim = actor.location.dimension.name
+                actor_info.append(
+                    {
+                        "type": actor_type,
+                        "pos": (actor_x,actor_y,actor_z),
+                        "dim": actor_dim
+                    }
+                )
+                
+            # 实体密度计算
+            region_size = size  # 定义区域立方体边长
+            dimension_groups = {}
+
+            # 按维度分组实体
+            for actor in actor_info:
+                dim = actor['dim']
+                if dim not in dimension_groups:
+                    dimension_groups[dim] = []
+                dimension_groups[dim].append(actor['pos'])
+
+            max_density = 0
+            result = {'dim': None, 'mid': None, 'count': 0}
+
+            # 遍历每个维度计算密度
+            for dim, positions in dimension_groups.items():
+                region_counts = {}
+                region_entity_types = {}
+
+                # 统计每个区域的实体数量
+                for (x, y, z) in positions:
+                    # 计算区域索引
+                    x_idx = int(x // region_size)
+                    y_idx = int(y // region_size)
+                    z_idx = int(z // region_size)
+                    region_key = (x_idx, y_idx, z_idx)
+
+                    region_counts[region_key] = region_counts.get(region_key, 0) + 1
+                    
+                    # 记录区域中的实体类型
+                    actor_type = next(actor['type'] for actor in actor_info if actor['pos'] == (x, y, z))
+                    if region_key not in region_entity_types:
+                        region_entity_types[region_key] = {}
+                    region_entity_types[region_key][actor_type] = region_entity_types[region_key].get(actor_type, 0) + 1
+
+
+                # 寻找当前维度最密集区域
+                if region_counts:
+                    current_max_key = max(region_counts, key=region_counts.get)
+                    current_max_count = region_counts[current_max_key]
+
+                    # 寻找当前区域中数量最多的实体类型
+                    most_common_entity = max(region_entity_types[current_max_key], key=region_entity_types[current_max_key].get)
+
+                    # 从区域中随机选择一个该类型的实体位置
+                    most_common_positions = [actor['pos'] for actor in actor_info if actor['type'] == most_common_entity and 
+                                            (actor['pos'][0] // region_size, actor['pos'][1] // region_size, actor['pos'][2] // region_size) == current_max_key]
+
+                    # 随机选择一个位置
+                    random_pos = random.choice(most_common_positions)
+
+
+                    # 计算中点坐标
+                    mid_x = (current_max_key[0] * region_size) + region_size / 2
+                    mid_y = (current_max_key[1] * region_size) + region_size / 2
+                    mid_z = (current_max_key[2] * region_size) + region_size / 2
+
+                    # 更新全局最大值
+                    if current_max_count > result['count']:
+                        result = {
+                            'dim': dim,
+                            'mid': (mid_x, mid_y, mid_z),
+                            'count': current_max_count,
+                            'entity_type': most_common_entity,
+                            'entity_pos': random_pos
+                        }
+
+            # 输出结果
+            if result['dim'] is not None:
+                if isinstance(sender,Player):
+                    def run_command(com):
+                        def com_on_click(sender):
+                            sender.perform_command(f'{com}')
+                        return com_on_click
+                    def print_info():
+                        def print_info_on_click(sender):
+                            sender.send_message(
+                                f"{ColorFormat.YELLOW}"
+                                f"{lang["最高密度区域在维度"]} {result['dim']},\n"
+                                f"{lang["中点坐标"]}:({result['mid'][0]:.1f}, {result['mid'][1]:.1f}, {result['mid'][2]:.1f}),\n"
+                                f"{lang["实体数量"]}:{result['count']}\n"
+                                f"{lang["数量最多的实体"]}: {result['entity_type']},\n"
+                                f"{lang["随机实体位置"]}: {result['entity_pos']}"
+                            )
+                        return print_info_on_click
+                    dim = result['dim']
+                    match dim:
+                        case "TheEnd":
+                            dim="the_end"
+                    tp_button = ActionForm.Button(text=f"{lang["传送到该区域"]}",on_click=run_command(com=f'execute in {dim} run tp "{sender.name}" {result['entity_pos'][0]} {result['entity_pos'][1]} {result['entity_pos'][2]}'))
+                    print_button = ActionForm.Button(text=f"{lang["打印信息到聊天栏"]}",on_click=print_info())
+                    
+                    form = ActionForm(
+                        title=f"{lang["实体密度检测结果"]}",
+                        content=f"{ColorFormat.YELLOW}{lang["最高密度区域在维度"]} {result['dim']},\n{lang["中点坐标"]}:({result['mid'][0]:.1f}, {result['mid'][1]:.1f}, {result['mid'][2]:.1f}),\n{lang["实体数量"]}:{result['count']}\n{lang["数量最多的实体"]}: {result['entity_type']},\n{lang["随机实体位置"]}: {result['entity_pos']}",
+                        buttons=[tp_button,print_button]
+                    )
+                    sender.send_form(form)
+                else:
+                    
+                    self.server.logger.info(
+                        f"{ColorFormat.YELLOW}"
+                        f"{lang["最高密度区域在维度"]} {result['dim']},\n"
+                        f"{lang["中点坐标"]}:({result['mid'][0]:.1f}, {result['mid'][1]:.1f}, {result['mid'][2]:.1f}),\n"
+                        f"{lang["实体数量"]}:{result['count']}\n"
+                        f"{lang["数量最多的实体"]}: {result['entity_type']},\n"
+                        f"{lang["随机实体位置"]}: {result['entity_pos']}"
+                    )
+            else:
+                if isinstance(sender,Player):
+                    sender.send_message(f"{ColorFormat.YELLOW}{lang["当前没有检测到实体"]}")
+                else:
+                    self.server.logger.info(f"{ColorFormat.YELLOW}{lang["当前没有检测到实体"]}")
         
 # 容器交互和其它交互事件
     @event_handler
@@ -1261,7 +1364,7 @@ class TianyanPlugin(Plugin):
             x = event.block.x
             y = event.block.y
             z = event.block.z
-            type = f"{blocktype}，{lang["使用"]}{hand_item}"
+            type = f'{blocktype},{lang["使用"]}{hand_item}'
             world = event.block.location.dimension.name
             record_data(name, action, x, y, z, type,world)
             
@@ -1274,7 +1377,7 @@ class TianyanPlugin(Plugin):
             x = event.block.x
             y = event.block.y
             z = event.block.z
-            type = f"{blocktype}，{lang["使用"]}{hand_item}"
+            type = f'{blocktype},{lang["使用"]}{hand_item}'
             world = event.block.location.dimension.name
             record_data(name, action, x, y, z, type,world)
 
@@ -1285,7 +1388,7 @@ class TianyanPlugin(Plugin):
             x = event.block.x
             y = event.block.y
             z = event.block.z
-            type = f"{blocktype}，{lang["使用"]}{hand_item}"
+            type = f'{blocktype},{lang["使用"]}{hand_item}'
             world = event.block.location.dimension.name
             record_data(name, action, x, y, z, type,world)
             
@@ -1298,7 +1401,7 @@ class TianyanPlugin(Plugin):
             x = event.block.x
             y = event.block.y
             z = event.block.z
-            type = f"{blocktype}，{lang["使用"]}{hand_item}"
+            type = f'{blocktype},{lang["使用"]}{hand_item}'
             world = event.block.location.dimension.name
             record_data(name, action, x, y, z, type,world)
             
@@ -1309,7 +1412,7 @@ class TianyanPlugin(Plugin):
             x = event.block.x
             y = event.block.y
             z = event.block.z
-            type = f"{blocktype}，{lang["使用"]}{hand_item}"
+            type = f'{blocktype},{lang["使用"]}{hand_item}'
             world = event.block.location.dimension.name
             record_data(name, action, x, y, z, type,world)
             
@@ -1405,7 +1508,10 @@ class TianyanPlugin(Plugin):
                 type = event.block.type
                 world = event.block.location.dimension.name
                 turnblock = event.block.data.block_states
-                blockdata = f" [{', '.join([f'"{key}"={value}' if isinstance(value, (bool, int, float)) else f'"{key}"="{value}"' for key, value in turnblock.items()])}]"
+                # 构造列表
+                items_list = [f'"{key}"={value}' if isinstance(value, (bool, int, float)) else f'"{key}"="{value}"' for key, value in turnblock.items()]
+                # 将列表转换为字符串并放入f-string中
+                blockdata = f"[{', '.join(items_list)}]"
                 record_data(name, action, x, y, z,type,world,blockdata)
                 
             return
@@ -1421,7 +1527,10 @@ class TianyanPlugin(Plugin):
                 type = event.block.type
                 world = event.block.location.dimension.name
                 turnblock = event.block.data.block_states
-                blockdata = f" [{', '.join([f'"{key}"={value}' if isinstance(value, (bool, int, float)) else f'"{key}"="{value}"' for key, value in turnblock.items()])}]"
+                # 构造列表
+                items_list = [f'"{key}"={value}' if isinstance(value, (bool, int, float)) else f'"{key}"="{value}"' for key, value in turnblock.items()]
+                # 将列表转换为字符串并放入f-string中
+                blockdata = f"[{', '.join(items_list)}]"
                 record_data(name, action, x, y, z,type,world,blockdata)
                 
             return
@@ -1464,7 +1573,10 @@ class TianyanPlugin(Plugin):
                 type = event.block.type
                 world = event.block.location.dimension.name
                 turnblock = event.block.data.block_states
-                blockdata = f" [{', '.join([f'"{key}"={value}' if isinstance(value, (bool, int, float)) else f'"{key}"="{value}"' for key, value in turnblock.items()])}]"
+                # 构造列表
+                items_list = [f'"{key}"={value}' if isinstance(value, (bool, int, float)) else f'"{key}"="{value}"' for key, value in turnblock.items()]
+                # 将列表转换为字符串并放入f-string中
+                blockdata = f"[{', '.join(items_list)}]"
                 record_data(name, action, x, y, z,type,world,blockdata)
                 
 # 生物被打事件
@@ -1565,36 +1677,17 @@ class TianyanPlugin(Plugin):
 
 # 用于调试的事件
 #    @event_handler
-#    def blocktest(self,event: PlayerInteractEvent ):  
-#        player = event.player
-#        inv = player.inventory
-#        self.server.broadcast_message(ColorFormat.YELLOW + f"{event.player.name}" + "位置" f"{event.block.x}"" " + f"{event.block.y}"" " + f"{event.block.z}" + f"{event.block.type}" + f"{event.block.location.dimension.name}" + f"{event.item}")
-# 用于调试的事件
-#    @event_handler
-#    def test(self,event: BlockBreakEvent): 
-#        current_tps = self.server.current_tps
-#        self.server.broadcast_message(f"{current_tps}") 
-#        turnblock = event.block.data.block_states
-#        blockdata = f" [{', '.join([f'{key}={value}' if isinstance(value, (bool, int, float)) else f'"{key}"="{value}"' for key, value in turnblock.items()])}]"
-#        turnblock = event.block.data.block_states
-#        blockdata = ', '.join([f'"{key}"={value}' if isinstance(value, (bool, int, float)) else f'"{key}"="{value}"' for key, value in turnblock.items()])
-#        blockdata = f" [{', '.join([f'"{key}"={value}' if isinstance(value, (bool, int, float)) else f'"{key}"="{value}"' for key, value in turnblock.items()])}]"
-#        self.server.broadcast_message(ColorFormat.YELLOW + f"{event.block.type} blockdata: {blockdata}")
-# 用于调试的命令发送事件
-#    @event_handler
-#    def test(self,event: PlayerCommandEvent):  
-#        self.server.broadcast_message(ColorFormat.YELLOW + f"{event.player.name}" + f"{PlayerCommandEvent.command}" + " " + f"{Player.address}")
-        
-# 记录玩家命令的字典
+#    def test(self,event: PlayerInteractEvent ):  
+#        self.server.broadcast_message(f"{ColorFormat.YELLOW}")
 
 
-    # 检查命令刷屏，默认10秒内12条视为刷屏
+    # 检查命令刷屏,默认10秒内12条视为刷屏
     @event_handler    
     def commandsban(self, event: PlayerCommandEvent):
         def ban(playername,reason):
             # 检查文件是否存在
             if not os.path.exists(banlist):
-                # 如果文件不存在，创建一个空的黑名单文件
+                # 如果文件不存在,创建一个空的黑名单文件
                 with open(banlist, 'w') as file:
                     json.dump({}, file)
 
@@ -1606,7 +1699,7 @@ class TianyanPlugin(Plugin):
             # 将更新后的黑名单写回文件
             with open(banlist, 'w', encoding='utf-8') as file:  # 指定编码为 UTF-8
                 json.dump(blacklist, file, ensure_ascii=False, indent=4)
-            self.logger.info(f"{lang["玩家"]} {playername} {lang["已被加入黑名单，理由"]}:{reason}")
+            self.logger.info(f'{lang["玩家"]} {playername} {lang["已被加入黑名单,理由"]}:{reason}')
         player_name = event.player.name
         #command = PlayerCommandEvent.command
         current_time = tm.time()
@@ -1618,22 +1711,22 @@ class TianyanPlugin(Plugin):
         player_commands[player_name] = [t for t in player_commands[player_name] if current_time - t <= 10]
         
         # 检查10秒内命令数量是否超过阈值
-        if len(player_commands[player_name]) > int(command_max):  # 从配置文件导入阈值，默认为12
+        if len(player_commands[player_name]) > int(command_max):  # 从配置文件导入阈值,默认为12
             reason = lang["你因涉嫌短时间内发送多条命令被ban"]
             event.player.kick(reason)
             #self.logger.info(f"{player_name}" + f"{reason}")
             playername = player_name
             ban(playername,reason)
-            self.server.broadcast_message(f"{playername}{lang["因涉嫌短时间内发送多条命令被ban"]}")
+            self.server.broadcast_message(f'{playername}{lang["因涉嫌短时间内发送多条命令被ban"]}')
             player_commands[player_name] = []  # 清空记录
             
-    # 检查聊天刷屏，10秒内发送6条消息视为刷屏
+    # 检查聊天刷屏,10秒内发送6条消息视为刷屏
     @event_handler    
     def chatban(self, event: PlayerChatEvent):
         def ban(playername,reason):
             # 检查文件是否存在
             if not os.path.exists(banlist):
-                # 如果文件不存在，创建一个空的黑名单文件
+                # 如果文件不存在,创建一个空的黑名单文件
                 with open(banlist, 'w',encoding='utf-8') as file:
                     json.dump({}, file)
 
@@ -1652,7 +1745,7 @@ class TianyanPlugin(Plugin):
             # 将更新后的黑名单写回文件
             with open(banlist, 'w', encoding='utf-8') as file:  # 指定编码为 UTF-8
                 json.dump(blacklist, file, ensure_ascii=False, indent=4)
-            self.logger.info(f"{lang["玩家"]} {playername} {lang["已被加入黑名单，理由"]}:{reason}")
+            self.logger.info(f'{lang["玩家"]} {playername} {lang["已被加入黑名单,理由"]}:{reason}')
         player_name = event.player.name
         #command = PlayerCommandEvent.command
         current_time = tm.time()
@@ -1664,13 +1757,13 @@ class TianyanPlugin(Plugin):
         player_message[player_name] = [t for t in player_message[player_name] if current_time - t <= 10]
         
         # 检查10秒内消息数量是否超过阈值
-        if len(player_message[player_name]) > int(message_max):  # 从配置文件导入阈值，默认为6
+        if len(player_message[player_name]) > int(message_max):  # 从配置文件导入阈值,默认为6
             reason = lang["你因涉嫌短时间内发送多条消息被ban"]
             event.player.kick(reason)
             #self.logger.info(f"{player_name}" + f"{reason}")
             playername = player_name
             ban(playername,reason)
-            self.server.broadcast_message(f"{playername}{lang["因涉嫌短时间内发送多条消息被ban"]}")
+            self.server.broadcast_message(f'{playername}{lang["因涉嫌短时间内发送多条消息被ban"]}')
             player_message[player_name] = []  # 清空记录
         
     # 检测ban玩家
@@ -1681,11 +1774,11 @@ class TianyanPlugin(Plugin):
         device_id = getattr(player,'device_id', '未知设备ID')
         # 检查文件是否存在
         if not os.path.exists(banlist):
-            # 如果文件不存在，创建一个空的黑名单文件
+            # 如果文件不存在,创建一个空的黑名单文件
             with open(banlist, 'w') as file:
                 json.dump({}, file)
         if not os.path.exists(banidlist):
-            # 如果文件不存在，创建一个空的黑名单文件
+            # 如果文件不存在,创建一个空的黑名单文件
             with open(banidlist, 'w') as file:
                 json.dump({}, file)
 
@@ -1700,14 +1793,14 @@ class TianyanPlugin(Plugin):
             entry = blacklist[playername]
             reason = entry.get("reason")
             timestamp = entry.get("timestamp")
-            event.player.kick(f"{lang["你已被封禁，理由"]}:{reason},{lang["被封禁时间"]}{timestamp}")
-            self.logger.info(f"{lang["玩家"]} {playername} {lang["处于封禁名单中，已被踢出，封禁理由为"]}:{reason}")
+            event.player.kick(f'{lang["你已被封禁,理由"]}:{reason},{lang["被封禁时间"]}{timestamp}')
+            self.logger.info(f'{lang["玩家"]} {playername} {lang["处于封禁名单中,已被踢出,封禁理由为"]}:{reason}')
         # 检查玩家设备ID是否在黑名单中
         if device_id in blackidlist:
             entry = blackidlist[device_id]
             timestamp = entry.get("timestamp")
-            event.player.kick(f"{lang["你的设备已于"]}{timestamp}{lang["被封禁"]}")
-            self.logger.info(f"{lang["被封禁的设备ID"]} {device_id} {lang["试图加入服务器，已被踢出"]}")
+            event.player.kick(f'{lang["你的设备已于"]}{timestamp}{lang["被封禁"]}')
+            self.logger.info(f'{lang["被封禁的设备ID"]} {device_id} {lang["试图加入服务器,已被踢出"]}')
         else:
             return False
         
@@ -1718,9 +1811,5 @@ class TianyanPlugin(Plugin):
         #pip = player.address.hostname
         pid = getattr(player, 'device_id', '未知设备ID')
         pos = getattr(player, 'device_os', '未知系统')
-        self.logger.info(f"{ColorFormat.YELLOW}{lang["玩家"]} {pname}({lang["设备ID"]}:{pid} {lang["系统名称"]}:{pos}) {lang["加入了游戏"]}")
+        self.logger.info(f'{ColorFormat.YELLOW}{lang["玩家"]} {pname}({lang["设备ID"]}:{pid} {lang["系统名称"]}:{pos}) {lang["加入了游戏"]}')
         
-            
-        
-player_commands = defaultdict(list)
-player_message = defaultdict(list)
