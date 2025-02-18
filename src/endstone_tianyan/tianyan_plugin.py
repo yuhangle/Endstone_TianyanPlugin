@@ -403,7 +403,7 @@ class TianyanPlugin(Plugin):
             "permissions": ["tianyan_plugin.command.op"],
         },
         "tydensity": {
-            "description": lang["检测实体密度最高的区域  --格式 /tydensity 区域大小"],
+            "description": lang["检测实体密度最高的区域 --格式 /tydensity 区域大小"],
             "usages": ["/tydensity [size:int]"],
             "permissions": ["tianyan_plugin.command.op"],
         }
