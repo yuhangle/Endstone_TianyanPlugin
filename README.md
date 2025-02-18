@@ -157,6 +157,12 @@
 /tyclean 时间(单位:小时)
 ```
 
+使用/tydensity 命令检测实体密度最高的区域
+
+```shell
+/tydensity 区域大小
+```
+
 实验性功能 使用/tyback 命令还原玩家直接方块放置与破坏行为
 
 ```shell

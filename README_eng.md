@@ -144,6 +144,13 @@ Use /tyclean command to clean database
 /tyclean time(hours)
 ```
 
+Use the /tydensity command to detect the area with the highest entity density
+
+```shell
+/tydensity area_size
+```
+
+
 ### Experimental Features
 
 - Use `/tyback` to restore block placement and destruction actions. Format:
