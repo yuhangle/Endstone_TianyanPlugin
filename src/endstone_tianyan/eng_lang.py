@@ -132,7 +132,7 @@ default_lang = {
     "\n\n天眼插件更新检测:\n无法获取最新版本信息\n": "\n\nTianyan Plugin Update Check:\nUnable to retrieve the latest version information\n",
     "\n\n天眼插件更新检测:\n更新检测超时\n": "\n\nTianyan Plugin Update Check:\nUpdate check timed out\n",
     "\n\n天眼插件更新检测:\n检测更新时发生未知错误": "\n\nTianyan Plugin Update Check:\nAn unknown error occurred while checking for updates",
-    "检测实体密度最高的区域": "Detect the area with the highest entity density",
+    "检测实体密度最高的区域 --格式 /tydensity 区域大小": "Detect the area with the highest entity density -- format: /tydensity area_size",
     "最高密度区域在维度": "The highest density area is in the dimension",
     "中点坐标": "Midpoint coordinates",
     "实体数量": "Number of entities",
@@ -142,5 +142,7 @@ default_lang = {
     "实体密度检测结果": "Entity density detection results",
     "传送到该区域": "Teleport to this area",
     "打印信息到聊天栏": "Print information to the chat bar",
-    "未提供参数,使用默认参数20格区域计算": "Parameters not provided, using default parameters for a 20-block area calculation"
+    "未提供参数,使用默认参数20格区域计算": "Parameters not provided, using default parameters for a 20-block area calculation",
+    "使用 /tydensity 命令检测实体密度最高的区域  --格式 /tydensity 区域大小 (仅管理员可用)": "Use the /tydensity command to detect the area with the highest entity density -- format: /tydensity area_size (OP only)",
+    "使用 /tyclean命令清理数据库中超过一定时间的数据 --格式 /tyclean 时间 (仅管理员可用)": "Use the /tyclean command to clean up data in the database that exceeds a certain time period -- Format: /tyclean time (OP only)"
 }
