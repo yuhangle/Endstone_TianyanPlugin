@@ -1,7 +1,7 @@
 from endstone.command import Command, CommandSender
 from endstone.plugin import Plugin
 from endstone import ColorFormat,Player,level
-from endstone.event import event_handler, BlockBreakEvent,PlayerInteractEvent,ActorKnockbackEvent,BlockPlaceEvent,PlayerCommandEvent,PlayerJoinEvent,PlayerChatEvent,PlayerInteractActorEvent,ActorSpawnEvent,ActorRemoveEvent,ActorDeathEvent
+from endstone.event import event_handler, BlockBreakEvent,PlayerInteractEvent,ActorKnockbackEvent,BlockPlaceEvent,PlayerCommandEvent,PlayerJoinEvent,PlayerChatEvent,PlayerInteractActorEvent,ActorSpawnEvent,ActorRemoveEvent,ActorDeathEvent,ActorExplodeEvent
 import os
 from datetime import datetime
 import json
@@ -20,6 +20,7 @@ from endstone_tianyan import ty_clean
 import requests
 from concurrent.futures import ThreadPoolExecutor, TimeoutError
 import random
+from collections import Counter
 
 # 兼容性代码,用于兼容1.1.3版本之前的数据
 def ensure_blockdata_column():
@@ -49,7 +50,7 @@ VERSION_URL = "https://api.github.com/repos/yuhangle/Endstone_TianyanPlugin/rele
 # 语言文件操作
 
 # 通过google.com可否访问来区分大陆与非大陆环境
-def can_access_google(timeout=3):
+def can_access_google(timeout=2):
     try:
         response = requests.get('https://www.google.com', timeout=timeout)
         # 如果响应状态码是200,表示成功访问
@@ -206,7 +207,7 @@ chestrec_data = []
 breakrec_data = []
 animalrec_data = []
 placerec_data = []
-actorrec_data = []
+bombrec_data = []
 lock = threading.Lock()  # 用于线程安全的锁
 running_lock = threading.Lock()
 is_running = False
@@ -233,7 +234,7 @@ def insert_records(data_list, cursor, has_blockdata=False):
 
 # 写入数据到 SQLite
 def write_to_db():
-    global chestrec_data, breakrec_data, animalrec_data, placerec_data, actorrec_data, is_running
+    global chestrec_data, breakrec_data, animalrec_data, placerec_data, bombrec_data, is_running
     with lock:
         with running_lock:
             # 检查数据库清理是否在运行,是则暂停写入
@@ -251,8 +252,8 @@ def write_to_db():
             insert_records(breakrec_data, cursor, has_blockdata=True)
         if animalrec_data:
             insert_records(animalrec_data, cursor)
-        if actorrec_data:
-            insert_records(actorrec_data, cursor)
+        if bombrec_data:
+            insert_records(bombrec_data, cursor)
     finally:
         with running_lock:
             is_running = False
@@ -312,8 +313,8 @@ class TianyanPlugin(Plugin):
         try:
             # 使用ThreadPoolExecutor来管理线程和超时
             with ThreadPoolExecutor(max_workers=1) as executor:
-                future = executor.submit(lambda: requests.get(VERSION_URL, timeout=3))  # 设置请求级别的3秒超时
-                response = future.result(timeout=3)  # 设置线程池级别的3秒超时
+                future = executor.submit(lambda: requests.get(VERSION_URL, timeout=2))  # 设置请求级别的3秒超时
+                response = future.result(timeout=2)  # 设置线程池级别的3秒超时
                 
                 if response.status_code == 200:
                     latest_version = response.json().get('tag_name', 'Unknown')
@@ -1334,7 +1335,6 @@ class TianyanPlugin(Plugin):
     def blockjh(self,event: PlayerInteractEvent): 
         # 分割线
         def record_data(name, action, x, y, z, type,world):
-            # """记录玩家的交互行为到data.json文件中"""
             interaction = {
                 'name': name,
                 'action': action,
@@ -1461,7 +1461,6 @@ class TianyanPlugin(Plugin):
     @event_handler
     def blockbreak(self, event: BlockBreakEvent):
         def record_data(name, action, x, y, z,type,world,blockdata):
-            # """记录玩家的交互行为到data.json文件中"""
             interaction = {
                 'name': name,
                 'action': action,
@@ -1585,7 +1584,6 @@ class TianyanPlugin(Plugin):
     @event_handler
     def animal(self, event: ActorKnockbackEvent):
         def record_data(name, action, x, y, z,type,world):
-            # """记录玩家的交互行为到data.json文件中"""
             interaction = {
                 'name': name,
                 'action': action,
@@ -1605,9 +1603,9 @@ class TianyanPlugin(Plugin):
             ]:
                 name = event.source.name
                 action = lang["攻击"]
-                x = event.actor.location.x
-                y = event.actor.location.y
-                z = event.actor.location.z
+                x = event.actor.location.block_x
+                y = event.actor.location.block_y
+                z = event.actor.location.block_z
                 type = event.actor.name
                 world = event.actor.location.dimension.name
                 record_data(name,action, x, y, z,type,world)
@@ -1617,19 +1615,43 @@ class TianyanPlugin(Plugin):
             if True:
                 name = event.source.name
                 action = lang["攻击"]
-                x = event.actor.location.x
-                y = event.actor.location.y
-                z = event.actor.location.z
+                x = event.actor.location.block_x
+                y = event.actor.location.block_y
+                z = event.actor.location.block_z
                 type = event.actor.name
                 world = event.actor.location.dimension.name
                 record_data(name,action, x, y, z,type,world)   
- 
+
+# 玩家互殴事件
+    @event_handler
+    def hit_player(self, event: ActorKnockbackEvent):
+        def record_data(name, action, x, y, z,type,world):
+            interaction = {
+                'name': name,
+                'action': action,
+                'coordinates': {'x': x, 'y': y, 'z': z},
+                'time': datetime.now().isoformat(),  # 记录当前时间
+                'type': type,
+                'world': world
+            }  
+            with lock:  # 确保线程安全
+                animalrec_data.append(interaction)                  
+            #threading.Thread(target=write_to_file).start()
+        self.server.broadcast_message(f"{event.source.type} {event.actor.type} {event.source.name} {event.actor.name}")
+        if event.source.type == "minecraft:player" and event.actor.type == "minecraft:player":    
+            hit_name = event.source.name
+            action = lang["攻击"]
+            x = event.actor.location.block_x
+            y = event.actor.location.block_y
+            z = event.actor.location.block_z
+            be_hit_name = event.actor.name
+            world = event.actor.location.dimension.name
+            record_data(hit_name,action, x, y, z,be_hit_name,world)
 
 # 方块放置事件
     @event_handler
     def blockplace(self, event: BlockPlaceEvent):
         def record_data(name, action, x, y, z,type,world):
-            # """记录玩家的交互行为到data.json文件中"""
             interaction = {
                 'name': name,
                 'action': action,
@@ -1665,7 +1687,7 @@ class TianyanPlugin(Plugin):
                 'world': world
             }  
             with lock:  # 确保线程安全
-                actorrec_data.append(interaction)                  
+                chestrec_data.append(interaction)                  
         #threading.Thread(target=write_to_file).start()
         name = event.player.name
         action = lang["交互"]
@@ -1673,6 +1695,44 @@ class TianyanPlugin(Plugin):
         y = event.actor.location.block_y
         z = event.actor.location.block_z
         type = event.actor.name
+        world = event.actor.location.dimension.name
+        record_data(name,action, x, y, z,type,world)
+        
+# 生物爆炸事件
+    @event_handler
+    def actor_bomb(self, event: ActorExplodeEvent):
+        def record_data(name, action, x, y, z,type,world):
+            interaction = {
+                'name': name,
+                'action': action,
+                'coordinates': {'x': x, 'y': y, 'z': z},
+                'time': datetime.now().isoformat(),  # 记录当前时间
+                'type': type,
+                'world': world
+            }  
+            with lock:  # 确保线程安全
+                bombrec_data.append(interaction)                  
+        #threading.Thread(target=write_to_file).start()
+        name = event.actor.type
+        action = lang["爆炸"]
+        x = event.actor.location.block_x
+        y = event.actor.location.block_y
+        z = event.actor.location.block_z
+        type = ""
+        # 从事件中获取被爆破的方块信息
+        
+        # 被破坏的全部方块类型
+        blocks_type = []
+        
+        for blocks in event.block_list:
+            block_type = blocks.type
+            blocks_type.append(block_type)
+            
+        block_counts = Counter(blocks_type)
+        
+        for block, count in block_counts.items():
+            type += f"\n{block} x {count},"
+        
         world = event.actor.location.dimension.name
         record_data(name,action, x, y, z,type,world)
         
