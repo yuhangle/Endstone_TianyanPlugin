@@ -144,5 +144,6 @@ default_lang = {
     "打印信息到聊天栏": "Print information to the chat bar",
     "未提供参数,使用默认参数20格区域计算": "Parameters not provided, using default parameters for a 20-block area calculation",
     "使用 /tydensity 命令检测实体密度最高的区域 --格式 /tydensity 区域大小 (仅管理员可用)": "Use the /tydensity command to detect the area with the highest entity density -- format: /tydensity area_size (OP only)",
-    "使用 /tyclean命令清理数据库中超过一定时间的数据 --格式 /tyclean 时间 (仅管理员可用)": "Use the /tyclean command to clean up data in the database that exceeds a certain time period -- Format: /tyclean time (OP only)"
+    "使用 /tyclean命令清理数据库中超过一定时间的数据 --格式 /tyclean 时间 (仅管理员可用)": "Use the /tyclean command to clean up data in the database that exceeds a certain time period -- Format: /tyclean time (OP only)",
+    "爆炸": "exploded"
 }
