@@ -43,9 +43,9 @@ The Tianyan plugin displays player system names and device IDs when they join th
 
 ## Additional Features
 
-### Restore Player-Triggered Block Destruction and Placement
+### Restore Player-Triggered Block Destruction and Placement and the damage caused by the entity explosion
 
-The Tianyan plugin supports restoring blocks destroyed or placed directly by players. This feature uses the `setblock` command to restore blocks based on data from the database. However, it cannot recover specific details such as the contents of chests. As an experimental feature, full restoration cannot be guaranteed.
+The Tianyan plugin supports restoring blocks destroyed or placed directly by players as well as the damage caused by the entity explosion. This feature uses the `setblock` command to restore blocks based on data from the database. However, it cannot recover specific details such as the contents of chests. As an experimental feature, full restoration cannot be guaranteed.
 
 ### View Player Inventory
 
@@ -153,9 +153,9 @@ Use the /tydensity command to detect the area with the highest entity density
 
 ### Experimental Features
 
-- Use `/tyback` to restore block placement and destruction actions. Format:
+- Use `/tyback` to restore block placement and destruction actions as well as the damage caused by the entity explosion. Format:
   ```shell
-  /tyback coordinates time (hours) radius player_name (optional)
+  /tyback coordinates time (hours) radius player_name or the ID of the exploding entity (optional)
   ```
 
 ## Development & Packaging
