@@ -389,8 +389,8 @@ class TianyanPlugin(Plugin):
             "permissions": ["tianyan_plugin.command.member"],
         },
         "tyback": {
-            "description": lang["实验性功能 还原玩家直接方块放置破坏行为 --格式 /tyback 坐标 时间(单位:小时) 半径 实施行为的玩家名(可选)(仅管理员可用)"],
-            "usages": ["/tyback [pos:pos] <time:float> <r:float> [player: message]"],
+            "description": lang["实验性功能 还原玩家直接方块放置破坏行为和实体爆炸破坏 --格式 /tyback 坐标 时间(单位:小时) 半径 实施行为的玩家名或爆炸的实体ID(可选)(仅管理员可用)"],
+            "usages": ["/tyback [pos:pos] <time:float> <r:float> [player_or_entity: message]"],
             "permissions": ["tianyan_plugin.command.op"],
         },
         "tyo": {
@@ -463,7 +463,7 @@ class TianyanPlugin(Plugin):
             sender.send_message(f'{ColorFormat.YELLOW}{lang["使用 /tyo 命令查看玩家物品栏 格式 /tyo 玩家名"]}')
             sender.send_message(f'{ColorFormat.YELLOW}{lang["使用 /tydensity 命令检测实体密度最高的区域  --格式 /tydensity 区域大小 (仅管理员可用)"]}')
             sender.send_message(f'{ColorFormat.YELLOW}{lang["使用 /tyclean命令清理数据库中超过一定时间的数据 --格式 /tyclean 时间 (仅管理员可用)"]}')
-            sender.send_message(f'{ColorFormat.YELLOW}{lang["实验性功能 使用/tyback 命令还原玩家直接方块放置破坏行为 格式 /tyback 坐标 时间(单位:小时) 半径 实施行为的玩家名(可选)(仅管理员可用)"]}')
+            sender.send_message(f'{ColorFormat.YELLOW}{lang["实验性功能 使用/tyback 命令还原玩家直接方块放置破坏行为和实体爆炸破坏 格式 /tyback 坐标 时间(单位:小时) 半径 实施行为的玩家名或爆炸的实体ID(可选)(仅管理员可用)"]}')
             
         elif command.name == "ty":
             if len(args) <= 2:
