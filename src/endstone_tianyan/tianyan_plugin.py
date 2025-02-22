@@ -253,7 +253,7 @@ def write_to_db():
         if animalrec_data:
             insert_records(animalrec_data, cursor)
         if bombrec_data:
-            insert_records(bombrec_data, cursor)
+            insert_records(bombrec_data, cursor, has_blockdata=True)
     finally:
         with running_lock:
             is_running = False
@@ -1149,20 +1149,33 @@ class TianyanPlugin(Plugin):
                         for item in results:
                             
                             turnaction = item['action']
-                            if turnaction == lang['破坏']:
-                                coordinates = item['coordinates']
-                                type = item['type']
-                                x,y,z = coordinates['x'],coordinates['y'],coordinates['z']
-                                pos = f'{x} {y} {z}'
-                                blockdata = item['blockdata']
-                                sender.perform_command(f'setblock {pos} {type}{blockdata}')
-                                #action = '放置'
-                            elif turnaction == lang['放置']:
+                            # 处理爆炸数据
+                            if turnaction == lang['爆炸']:
                                 coordinates = item['coordinates']
                                 x,y,z = coordinates['x'],coordinates['y'],coordinates['z']
                                 pos = f'{x} {y} {z}'
-                                sender.perform_command(f'setblock {pos} air')
-                                #action = '破坏'
+                                bomb_blockdata = item['blockdata']
+                                blocksinfo = re.findall(r'\{(.*?)\}', bomb_blockdata)
+                                blocksinfo = [s.replace("{", "").replace("}", "") for s in blocksinfo]
+                                for block_info in blocksinfo:
+                                    sender.perform_command(f'setblock {block_info}')
+                            
+                            # 处理普通方块操作数据
+                            else:
+                                if turnaction == lang['破坏']:
+                                    coordinates = item['coordinates']
+                                    type = item['type']
+                                    x,y,z = coordinates['x'],coordinates['y'],coordinates['z']
+                                    pos = f'{x} {y} {z}'
+                                    blockdata = item['blockdata']
+                                    sender.perform_command(f'setblock {pos} {type}{blockdata}')
+                                    #action = '放置'
+                                elif turnaction == lang['放置']:
+                                    coordinates = item['coordinates']
+                                    x,y,z = coordinates['x'],coordinates['y'],coordinates['z']
+                                    pos = f'{x} {y} {z}'
+                                    sender.perform_command(f'setblock {pos} air')
+                                    #action = '破坏'
                         
         
         elif command.name == "tyclean":
@@ -1637,7 +1650,6 @@ class TianyanPlugin(Plugin):
             with lock:  # 确保线程安全
                 animalrec_data.append(interaction)                  
             #threading.Thread(target=write_to_file).start()
-        self.server.broadcast_message(f"{event.source.type} {event.actor.type} {event.source.name} {event.actor.name}")
         if event.source.type == "minecraft:player" and event.actor.type == "minecraft:player":    
             hit_name = event.source.name
             action = lang["攻击"]
@@ -1701,18 +1713,19 @@ class TianyanPlugin(Plugin):
 # 生物爆炸事件
     @event_handler
     def actor_bomb(self, event: ActorExplodeEvent):
-        def record_data(name, action, x, y, z,type,world):
+        def record_data(name, action, x, y, z,type,world,blockdata):
             interaction = {
                 'name': name,
                 'action': action,
                 'coordinates': {'x': x, 'y': y, 'z': z},
                 'time': datetime.now().isoformat(),  # 记录当前时间
                 'type': type,
-                'world': world
+                'world': world,
+                'blockdata': blockdata
             }  
             with lock:  # 确保线程安全
-                bombrec_data.append(interaction)                  
-        #threading.Thread(target=write_to_file).start()
+                bombrec_data.append(interaction)
+                
         name = event.actor.type
         action = lang["爆炸"]
         x = event.actor.location.block_x
@@ -1723,10 +1736,21 @@ class TianyanPlugin(Plugin):
         
         # 被破坏的全部方块类型
         blocks_type = []
-        
+        # 被破坏方块的全部数据
+        blockdata = "bomb_event_data"
         for blocks in event.block_list:
+            # 方块类型
             block_type = blocks.type
             blocks_type.append(block_type)
+            
+            # 方块坐标
+            block_pos = f"{blocks.x} {blocks.y} {blocks.z}"
+            # 获取方块数据
+            turnblock = blocks.data.block_states
+            # 构造列表
+            items_list = [f'"{key}"={value}' if isinstance(value, (bool, int, float)) else f'"{key}"="{value}"' for key, value in turnblock.items()]
+            # 将列表转换为字符串并放入f-string中
+            blockdata += f"{'{'}{block_pos} {block_type}[{', '.join(items_list)}]{'}'} "
             
         block_counts = Counter(blocks_type)
         
@@ -1734,7 +1758,7 @@ class TianyanPlugin(Plugin):
             type += f"\n{block} x {count},"
         
         world = event.actor.location.dimension.name
-        record_data(name,action, x, y, z,type,world)
+        record_data(name,action, x, y, z, type, world, blockdata)
         
 
 # 用于调试的事件
