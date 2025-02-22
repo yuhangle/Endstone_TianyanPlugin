@@ -42,7 +42,7 @@ banidlist = os.path.join('plugins/tianyan_data/banidlist.json')
 config_file = os.path.join(subdir, 'config.json')
 lang_file = os.path.join(subdir, 'lang.json')
 # 插件版本
-plugin_version = "v1.1.6"
+plugin_version = "v1.1.7"
 
 # GitHub上的版本信息URL
 VERSION_URL = "https://api.github.com/repos/yuhangle/Endstone_TianyanPlugin/releases/latest"
@@ -279,7 +279,7 @@ def on_plugin_close():
            
 
 class TianyanPlugin(Plugin):
-    api_version = "0.5"
+    api_version = "0.6"
 
 
     # 这个函数会启动一个后台任务

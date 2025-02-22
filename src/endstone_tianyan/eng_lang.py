@@ -14,7 +14,7 @@ default_lang = {
     "关键词搜索 --格式 /tys 搜索类型  查询关键词 时间(单位:小时) (仅管理员可用)": "Keyword search -- Format: /tys search type query keyword Time (in hours) (OP only)",
     "使用图形窗口查询玩家&部分实体行为记录": "Use GUI to query player & partial entity behavior records",
     "使用图形窗口搜索关键词查询玩家&部分实体行为记录": "Use GUI for keyword search to query player & partial entity behavior records",
-    "实验性功能 还原玩家直接方块放置破坏行为和实体爆炸破坏 --格式 /tyback 坐标 时间(单位:小时) 半径 实施行为的玩家名(可选)(仅管理员可用)": "Experimental feature: Restore direct player block placement or destruction and entity explosion damage -- Format: /tyback Coordinates Time (in hours) Radius Player Name or the ID of the exploding entity (optional) (OP only)",
+    "实验性功能 还原玩家直接方块放置破坏行为和实体爆炸破坏 --格式 /tyback 坐标 时间(单位:小时) 半径 实施行为的玩家名或爆炸的实体ID(可选)(仅管理员可用)": "Experimental feature: Restore direct player block placement or destruction and entity explosion damage -- Format: /tyback Coordinates Time (in hours) Radius Player Name or the ID of the exploding entity (optional) (OP only)",
     "天眼插件已启用  版本": "TianyanPlugin has been enable  Version",
     "配置文件位于": "Config file is in",  
     "插件语言设定为": "Plugin language set to",
