@@ -32,7 +32,7 @@ default_lang = {
     "使用/tygui 命令使用图形窗口查询玩家&部分实体行为记录": "Use /tygui command to query player & partial entity behavior records via GUI",
     "使用/tysgui 命令使用图形窗口搜索关键词查询玩家&部分实体行为记录 (仅管理员可用)": "Use /tysgui command for keyword search to query player & partial entity behavior records via GUI (OP only)",
     "tys命令参数解析 搜索类型:player action object(玩家或行为实施者 行为 被实施行为的对象) 搜索关键词:玩家名或行为实施者名 交互 破坏 攻击 放置 被实施行为的对象名": "tys command parameters: Search type: player, action, object (Player or action initiator, Action, Targeted object). Keywords: Player name or action initiator name, Interaction, Destruction, Attack, Placement, Targeted object name",
-    "实验性功能 使用/tyback 命令还原玩家直接方块放置破坏行为和实体爆炸破坏 格式 /tyback 坐标 时间(单位:小时) 半径 实施行为的玩家名(可选)(仅管理员可用)": "Experimental feature: Use /tyback command to restore direct player block placement or destruction and entity explosion damage. Format: /tyback Coordinates Time (in hours) Radius Player Name or the ID of the exploding entity (optional) (OP only)",
+    "实验性功能 使用/tyback 命令还原玩家直接方块放置破坏行为和实体爆炸破坏 格式 /tyback 坐标 时间(单位:小时) 半径 实施行为的玩家名或爆炸的实体ID(可选)(仅管理员可用)": "Experimental feature: Use /tyback command to restore direct player block placement or destruction and entity explosion damage. Format: /tyback Coordinates Time (in hours) Radius Player Name or the ID of the exploding entity (optional) (OP only)",
     "命令格式错误!请检查命令是否正确;如果使用~ ~ ~,请直接输入坐标": "Command format error! Please check if the command is correct; if using ~ ~ ~, input coordinates directly",
     "查询半径最大值为100 !": "Query radius max value is 100!",
     "未查询到任何结果.": "No results found.",
