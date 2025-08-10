@@ -303,7 +303,8 @@ class TianyanPlugin(Plugin):
             self.server.broadcast_message(f"{ColorFormat.RED}{lang['数据库清理发生了未知错误']}")
         # 完成
         is_running = False
-        
+
+    """
     # 更新检测函数
 
     def check_for_updates(self):
@@ -328,6 +329,7 @@ class TianyanPlugin(Plugin):
             n_lang_4 = lang['\n\n天眼插件更新检测:\n检测更新时发生未知错误']
             self.server.logger.info(f'{ColorFormat.YELLOW}{n_lang_4}: {e}\n')
 
+    """
 
     commands = {
         "ty": {
