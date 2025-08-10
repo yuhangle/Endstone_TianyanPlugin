@@ -1,20 +1,17 @@
 from endstone.command import Command, CommandSender
 from endstone.plugin import Plugin
-from endstone import ColorFormat,Player,level
-from endstone.event import event_handler, BlockBreakEvent,PlayerInteractEvent,ActorKnockbackEvent,BlockPlaceEvent,PlayerCommandEvent,PlayerJoinEvent,PlayerChatEvent,PlayerInteractActorEvent,ActorSpawnEvent,ActorRemoveEvent,ActorDeathEvent,ActorExplodeEvent
+from endstone import ColorFormat,Player
+from endstone.event import event_handler, BlockBreakEvent,PlayerInteractEvent,ActorKnockbackEvent,BlockPlaceEvent,PlayerCommandEvent,PlayerJoinEvent,PlayerChatEvent,PlayerInteractActorEvent,ActorExplodeEvent
 import os
-from datetime import datetime
 import json
 import threading
-import math
 from datetime import datetime, timedelta
-import shutil
 import time as tm
 from collections import defaultdict
 import re
 import sqlite3
-from endstone.form import ModalForm,Dropdown,Label,ActionForm,TextInput,Slider,MessageForm
-from endstone.inventory import Inventory,PlayerInventory
+from endstone.form import ModalForm,Dropdown,ActionForm,TextInput,Button
+import endstone.form
 from endstone_tianyan import zh_lang, eng_lang
 from endstone_tianyan import ty_clean
 import requests
@@ -42,7 +39,7 @@ banidlist = os.path.join('plugins/tianyan_data/banidlist.json')
 config_file = os.path.join(subdir, 'config.json')
 lang_file = os.path.join(subdir, 'lang.json')
 # 插件版本
-plugin_version = "v1.1.7"
+plugin_version = "v1.1.7.1"
 
 # GitHub上的版本信息URL
 VERSION_URL = "https://api.github.com/repos/yuhangle/Endstone_TianyanPlugin/releases/latest"
@@ -279,7 +276,7 @@ def on_plugin_close():
            
 
 class TianyanPlugin(Plugin):
-    api_version = "0.6"
+    api_version = "0.10"
 
 
     # 这个函数会启动一个后台任务
@@ -386,7 +383,7 @@ class TianyanPlugin(Plugin):
         "tysgui": {
             "description": lang["使用图形窗口搜索关键词查询玩家&部分实体行为记录"],
             "usages": ["/tysgui"],
-            "permissions": ["tianyan_plugin.command.member"],
+            "permissions": ["tianyan_plugin.command.op"],
         },
         "tyback": {
             "description": lang["实验性功能 还原玩家直接方块放置破坏行为和实体爆炸破坏 --格式 /tyback 坐标 时间(单位:小时) 半径 实施行为的玩家名或爆炸的实体ID(可选)(仅管理员可用)"],
@@ -568,8 +565,8 @@ class TianyanPlugin(Plugin):
                                         show(sender)
                                     return on_click
                                 
-                                next =  ActionForm.Button(text=f'{lang["下一页"]}',on_click=next_button_click())
-                                up =  ActionForm.Button(text=f'{lang["上一页"]}',on_click=up_button_click())
+                                next =  endstone.form.Button(text=f'{lang["下一页"]}',on_click=next_button_click())
+                                up =  endstone.form.Button(text=f'{lang["上一页"]}',on_click=up_button_click())
                                     
                             # 显示第一页窗口
                                 self.server.get_player(sender.name).send_form(
@@ -625,6 +622,8 @@ class TianyanPlugin(Plugin):
                         self.logger.info(f'{lang["玩家"]} {playername} {lang["已经在"]}{timestamp}{lang["被添加至黑名单中了,理由是:"]}{reason},{lang["请勿重复添加"]}')
                     else:
                         reason = blacklist[playername]
+                        entry = blacklist[playername]
+                        timestamp = entry.get("timestamp")
                         sender.send_message(f'{lang["玩家"]} {playername} {lang["已经在"]}{timestamp}{lang["被添加至黑名单中了,理由是:"]}{reason},{lang["请勿重复添加"]}')
                 else:
                     # 将玩家名和理由写入黑名单
@@ -937,8 +936,8 @@ class TianyanPlugin(Plugin):
                                             show(sender)
                                         return on_click
                                     
-                                    next =  ActionForm.Button(text=f'{lang["下一页"]}',on_click=next_button_click())
-                                    up =  ActionForm.Button(text=f'{lang["上一页"]}',on_click=up_button_click())
+                                    next =  endstone.form.Button(text=f'{lang["下一页"]}',on_click=next_button_click())
+                                    up =  endstone.form.Button(text=f'{lang["上一页"]}',on_click=up_button_click())
                                         
                                 # 显示第一页窗口
                                     self.server.get_player(sender.name).send_form(
@@ -1318,8 +1317,8 @@ class TianyanPlugin(Plugin):
                     match dim:
                         case "TheEnd":
                             dim="the_end"
-                    tp_button = ActionForm.Button(text=f'{lang["传送到该区域"]}',on_click=run_command(com=f'execute in {dim} run tp "{sender.name}" {result["entity_pos"][0]} {result["entity_pos"][1]} {result["entity_pos"][2]}'))
-                    print_button = ActionForm.Button(text=f'{lang["打印信息到聊天栏"]}',on_click=print_info())
+                    tp_button = endstone.form.Button(text=f'{lang["传送到该区域"]}',on_click=run_command(com=f'execute in {dim} run tp "{sender.name}" {result["entity_pos"][0]} {result["entity_pos"][1]} {result["entity_pos"][2]}'))
+                    print_button = endstone.form.Button(text=f'{lang["打印信息到聊天栏"]}',on_click=print_info())
                     
                     form = ActionForm(
                         title=f'{lang["实体密度检测结果"]}',
@@ -1367,6 +1366,10 @@ class TianyanPlugin(Plugin):
                 hand_item = event.item.type
         except:
             hand_item = "hand"
+
+        # 解决玩家交互空气时报错问题
+        if event.block is None:
+            return
             
         #先检测是否玩家使用物品交互
         
