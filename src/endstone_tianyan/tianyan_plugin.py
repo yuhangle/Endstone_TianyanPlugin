@@ -431,7 +431,7 @@ class TianyanPlugin(Plugin):
 
     def on_enable(self) -> None:
         # 更新检测
-        self.check_for_updates()
+        #self.check_for_updates()
         self.logger.info(f'{ColorFormat.YELLOW}{lang["天眼插件已启用  版本"]} {plugin_version}')
         self.logger.info(f'{ColorFormat.YELLOW}{lang["配置文件位于"]}plugins/tianyan_data/config.json')
         self.logger.info(f'{ColorFormat.YELLOW}{lang["插件语言设定为"]} {language}')
