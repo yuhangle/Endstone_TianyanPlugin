@@ -14,6 +14,9 @@
 #include <inventoryui_init.h>
 #include "webui_adapter/log_query_impl.h"
 #include "webui_adapter/language_impl.h"
+#ifdef _WIN32
+#include <windows.h>
+#endif
 
 // 为了方便在宏里调用，定义一个短函数
 inline std::string T(const std::string& key) {
@@ -417,6 +420,12 @@ void TianyanPlugin::onLoad()
         getLogger().info("No data path,auto create");
         filesystem::create_directory(TianyanCore::dataPath);
     }
+}
+
+void TianyanPlugin::onEnable()
+{
+    getLogger().info("onEnable is called");
+
     //获取服务器语言
     const string sever_lang = getServer().getLanguage().getLocale();
     TianyanCore::language_file = string(TianyanCore::dataPath) + "/language/"+sever_lang+".json";
@@ -424,11 +433,6 @@ void TianyanPlugin::onLoad()
     //加载语言
     const auto [fst, snd] = Tran->loadLanguage();
     getLogger().info(snd);
-}
-
-void TianyanPlugin::onEnable()
-{
-    getLogger().info("onEnable is called");
 
     // 确保目录和配置文件存在
     datafile_check();

@@ -17,7 +17,7 @@ include(ExternalProject)
 FetchContent_Declare(
         endstone
         GIT_REPOSITORY https://github.com/EndstoneMC/endstone.git
-        GIT_TAG v0.11.5
+        GIT_TAG v0.11.7
 )
 FetchContent_MakeAvailable(endstone)
 
@@ -44,6 +44,10 @@ FetchContent_Declare(
     GIT_TAG main
 )
 FetchContent_MakeAvailable(endstone_inventoryui)
+
+set_target_properties(endstone_inventoryui PROPERTIES
+        POSITION_INDEPENDENT_CODE ON
+)
 
 # ---- cpp-httplib (WebUI 后端 HTTP 库) ----
 FetchContent_Declare(
