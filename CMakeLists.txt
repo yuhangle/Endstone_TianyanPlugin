@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.15)
 
 project(tianyan CXX)
 
-set(BASE_VERSION "1.2.3.4")
+set(BASE_VERSION "1.2.3.5")
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -17,7 +17,7 @@ include(ExternalProject)
 FetchContent_Declare(
         endstone
         GIT_REPOSITORY https://github.com/EndstoneMC/endstone.git
-        GIT_TAG v0.11.5
+        GIT_TAG v0.11.7
 )
 FetchContent_MakeAvailable(endstone)
 
@@ -44,6 +44,10 @@ FetchContent_Declare(
     GIT_TAG main
 )
 FetchContent_MakeAvailable(endstone_inventoryui)
+
+set_target_properties(endstone_inventoryui PROPERTIES
+        POSITION_INDEPENDENT_CODE ON
+)
 
 # ---- Rust MySQL static library (built via cargo) ----
 if (WIN32)

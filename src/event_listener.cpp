@@ -12,6 +12,45 @@ EventListener::EventListener(TianyanPlugin* tianyan, translate* tran)
     :plugin_(*tianyan), tran_(tran)
 {}
 
+template<>
+struct fmt::formatter<endstone::BlockStates> {
+
+    static constexpr auto parse(const format_parse_context& ctx) {
+        return ctx.begin();
+    }
+
+    template<typename FormatContext>
+    auto format(const endstone::BlockStates& block_states, FormatContext& ctx) const {
+        auto out = ctx.out();
+
+        if (block_states.empty()) {
+            return fmt::format_to(out, "");
+        }
+
+        fmt::format_to(out, "[");
+
+        bool first = true;
+
+        for (const auto& [key, value] : block_states) {
+
+            if (!first) {
+                fmt::format_to(out, ",");
+            }
+            first = false;
+
+            fmt::format_to(out, "\"{}\"=", key);
+
+            std::visit(
+                [&](const auto& v) {
+                    fmt::format_to(out, "{}", v);
+                },
+                value
+            );
+        }
+
+        return fmt::format_to(out, "]");
+    }
+};
 
 void EventListener::initOnlinePlayers()
 {
