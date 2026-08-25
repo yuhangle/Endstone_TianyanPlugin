@@ -17,7 +17,7 @@ include(ExternalProject)
 FetchContent_Declare(
         endstone
         GIT_REPOSITORY https://github.com/EndstoneMC/endstone.git
-        GIT_TAG v0.11.7
+        GIT_TAG v0.11.9
 )
 FetchContent_MakeAvailable(endstone)
 

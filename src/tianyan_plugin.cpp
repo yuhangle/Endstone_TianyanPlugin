@@ -1724,7 +1724,7 @@ void TianyanPlugin::checkAsyncTasks() {
                         failed_times++;
                     }
                 } else if (logData.type == "player_right_click_block") {
-                    if (auto hand_block = db_util::splitString(logData.data); hand_block[1] != "[]") {
+                    if (auto hand_block = db_util::splitString(logData.data); hand_block.size() >= 2 && hand_block[1] != "[]") {
                         static constexpr std::array<std::string_view, 12> skipKeywords = {
                             "chest", "sign", "command", "shulker_box",
                             "dispenser", "dropper", "hopper", "barrel",
