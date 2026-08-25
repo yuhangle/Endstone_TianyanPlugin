@@ -159,6 +159,7 @@ add_dependencies(tianyan_webui webui_resources)
 set_target_properties(tianyan_webui PROPERTIES
     CXX_STANDARD 20
     CXX_STANDARD_REQUIRED ON
+    POSITION_INDEPENDENT_CODE ON
 )
 # 抑制 cpp-httplib 的 operator"" _t 弃用警告（第三方库代码，不影响功能）
 target_compile_options(tianyan_webui PRIVATE -Wno-deprecated-literal-operator)
