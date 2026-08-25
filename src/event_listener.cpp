@@ -24,7 +24,7 @@ struct fmt::formatter<endstone::BlockStates> {
         auto out = ctx.out();
 
         if (block_states.empty()) {
-            return fmt::format_to(out, "");
+            return fmt::format_to(out, "[]");
         }
 
         fmt::format_to(out, "[");
@@ -167,6 +167,12 @@ void EventListener::onActorDamage(const endstone::ActorDamageEvent& event){
 void EventListener::onPlayerRightClickBlock(const endstone::PlayerInteractEvent& event) {
     TianyanCore::LogData logData;
     if (!event.getBlock()) {
+        return;
+    }
+    // 0.11.9 起 PlayerInteractEvent 会以 LeftClickAir/RightClickAir 动作触发，
+    // 这里只记录真实的方块交互，避免写入异常数据。
+    if (event.getAction() == endstone::PlayerInteractEvent::Action::LeftClickAir ||
+        event.getAction() == endstone::PlayerInteractEvent::Action::RightClickAir) {
         return;
     }
     //对特定物品的交互进行记录

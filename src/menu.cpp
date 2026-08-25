@@ -82,8 +82,10 @@ void Menu::showLogMenu(endstone::Player &player, const std::vector<TianyanCore::
                 //对手持物品交互进行处理
                 if (logData.type == "player_right_click_block") {
                     auto hand_block = db_util::splitString(logData.data);
-                    logFields.emplace_back(tran_->getLocal("Item in Hand"), tran_->getLocal(hand_block[0]));
-                    if (hand_block[1] != "[]") {
+                    if (!hand_block.empty()) {
+                        logFields.emplace_back(tran_->getLocal("Item in Hand"), tran_->getLocal(hand_block[0]));
+                    }
+                    if (hand_block.size() > 1 && hand_block[1] != "[]") {
                         logFields.emplace_back(tran_->getLocal("Data"), hand_block[1]);
                     }
                 } else {
