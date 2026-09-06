@@ -12,6 +12,8 @@
 #include "sqlite_backend.h"
 #include "rust_backend.h"
 #include <inventoryui_init.h>
+#include "webui_adapter/log_query_impl.h"
+#include "webui_adapter/language_impl.h"
 #ifdef _WIN32
 #include <windows.h>
 #endif
@@ -108,59 +110,94 @@ ENDSTONE_PLUGIN("tianyan_plugin", TIANYAN_PLUGIN_VERSION, TianyanPlugin)
 
     //数据目录和配置文件检查
 void TianyanPlugin::datafile_check() const {
-    json df_config = {
-        {"language","zh_CN"},
-        {"enable_web_ui",false},
+    // 按逻辑分组排列 key 顺序
+    ordered_json df_config = {
+        // ---- 基础设置 ----
+        {"language", "zh_CN"},
+        // ---- 数据库 ----
         {"database_type", "sqlite"},
-        {"10s_message_max", 6},
-        {"10s_command_max", 12},
-        {"no_log_mobs", {"minecraft:zombie_pigman","minecraft:zombie","minecraft:skeleton","minecraft:bogged","minecraft:slime"}},
         {"mysql_host", "127.0.0.1"},
         {"mysql_port", 3306},
         {"mysql_user", "root"},
         {"mysql_password", ""},
-        {"mysql_database", "endstone"}
+        {"mysql_database", "endstone"},
+        // ---- WebUI ----
+        {"enable_web_ui", false},
+        {"web_secret", "your_secret"},
+        {"web_port", 8098},
+        // ---- 反刷屏 ----
+        {"10s_message_max", 6},
+        {"10s_command_max", 12},
+        // ---- 实体过滤 ----
+        {"no_log_mobs", {"minecraft:zombie_pigman","minecraft:zombie","minecraft:skeleton","minecraft:bogged","minecraft:slime"}},
+        // ---- 配置记录项 ----
+        {"enforce_no_log_mobs", false},
+        {"log_piston", true},
+        {"log_block_bomb",true},
+        {"log_entity_bomb",true},
+        {"log_block_break",true},
+        {"log_block_place",true},
+        {"log_entity_damage",true},
+        {"log_player_right_click_block",true},
+        {"log_player_right_click_entity",true},
+        {"log_entity_die",true},
+        {"log_player_pickup_item",true},
+        {"log_player_drop_item",true},
+        {"log_liquid_flow",true}
+    };
+
+    auto write_config = [&](const ordered_json& config) {
+        if (std::ofstream file(TianyanCore::config_path); file.is_open()) {
+            file << config.dump(4);
+            file.close();
+            return true;
+        }
+        return false;
     };
 
     if (!(std::filesystem::exists(TianyanCore::dataPath))) {
         getLogger().info(Tran->getLocal("No data path,auto create"));
         std::filesystem::create_directory(TianyanCore::dataPath);
         if (!(std::filesystem::exists(TianyanCore::config_path))) {
-            if (std::ofstream file(TianyanCore::config_path); file.is_open()) {
-                file << df_config.dump(4);
-                file.close();
+            if (write_config(df_config)) {
                 getLogger().info(Tran->getLocal("Config file created"));
             }
         }
     } else if (std::filesystem::exists(TianyanCore::dataPath)) {
         if (!(std::filesystem::exists(TianyanCore::config_path))) {
-            if (std::ofstream file(TianyanCore::config_path); file.is_open()) {
-                file << df_config.dump(4);
-                file.close();
+            if (write_config(df_config)) {
                 getLogger().info(Tran->getLocal("Config file created"));
             }
         } else {
             bool need_update = false;
-            json loaded_config;
+            ordered_json loaded_config;
 
             // 加载现有配置文件
             std::ifstream file(TianyanCore::config_path);
             file >> loaded_config;
 
-            // 检查配置完整性并更新
+            // 以 df_config 定义顺序为基准重建，缺失的 key 插入到对应分组位置
+            ordered_json merged;
             for (auto& [key, value] : df_config.items()) {
-                if (!loaded_config.contains(key)) {
-                    loaded_config[key] = value;
+                if (loaded_config.contains(key)) {
+                    merged[key] = loaded_config[key];
+                } else {
+                    merged[key] = value;
                     getLogger().info(Tran->tr(Tran->getLocal("Config '{}' has update with default config"), key));
                     need_update = true;
                 }
             }
+            // 追加用户自定义的额外字段（不在 df_config 中）
+            for (auto& [key, value] : loaded_config.items()) {
+                if (!merged.contains(key)) {
+                    merged[key] = value;
+                }
+            }
+            loaded_config = std::move(merged);
 
             // 如果需要更新配置文件，则进行写入
             if (need_update) {
-                if (std::ofstream outfile(TianyanCore::config_path); outfile.is_open()) {
-                    outfile << loaded_config.dump(4);
-                    outfile.close();
+                if (write_config(loaded_config)) {
                     getLogger().info(Tran->getLocal("Config file update over"));
                 }
             }
@@ -233,15 +270,15 @@ void TianyanPlugin::migrateOldBanData()
 }
 
 // 读取配置文件
-[[nodiscard]] json TianyanPlugin::read_config() const {
+[[nodiscard]] ordered_json TianyanPlugin::read_config() const {
     std::ifstream i(TianyanCore::config_path);
     try {
-        json j;
+        ordered_json j;
         i >> j;
         return j;
-    } catch (json::parse_error& ex) { // 捕获解析错误
+    } catch (ordered_json::parse_error& ex) { // 捕获解析错误
         getLogger().error( ex.what());
-        json error_value = {
+        ordered_json error_value = {
                 {"error","error"}
         };
         return error_value;
@@ -401,7 +438,7 @@ void TianyanPlugin::onEnable()
     datafile_check();
 
     // 读取配置文件选择数据库后端
-    json json_msg = read_config();
+    ordered_json json_msg = read_config();
     try {
         if (json_msg.contains("database_type")) {
             db_type_ = json_msg["database_type"].get<std::string>();
@@ -466,6 +503,19 @@ void TianyanPlugin::onEnable()
             lang = json_msg["language"];
             TianyanCore::language_file = TianyanCore::language_path +lang+".json";
             TianyanCore::enable_web_ui = json_msg["enable_web_ui"];
+            TianyanCore::config_enforce_no_log_mobs = json_msg["enforce_no_log_mobs"];
+            TianyanCore::config_log_piston = json_msg["log_piston"];
+            TianyanCore::config_log_block_bomb = json_msg["log_block_bomb"];
+            TianyanCore::config_log_entity_bomb = json_msg["log_entity_bomb"];
+            TianyanCore::config_log_block_break = json_msg["log_block_break"];
+            TianyanCore::config_log_block_place = json_msg["log_block_place"];
+            TianyanCore::config_log_entity_damage = json_msg["log_entity_damage"];
+            TianyanCore::config_log_player_right_click_block = json_msg["log_player_right_click_block"];
+            TianyanCore::config_log_player_right_click_entity = json_msg["log_player_right_click_entity"];
+            TianyanCore::config_log_entity_die = json_msg["log_entity_die"];
+            TianyanCore::config_log_player_pickup_item = json_msg["log_player_pickup_item"];
+            TianyanCore::config_log_player_drop_item = json_msg["log_player_drop_item"];
+            TianyanCore::config_log_liquid_flow = json_msg["log_liquid_flow"];
         } else {
             getLogger().error(Tran->getLocal("Config file error!Use default config"));
         }
@@ -524,10 +574,54 @@ _____   _
     getLogger().info("You can change the plugin’s language by editing the config file. Choose a language from the language folder.");
     if (TianyanCore::enable_web_ui)
     {
-        start_web_server(TianyanCore::dbPath);
-#ifdef _WIN32
-        windows_print_webui_log = getServer().getScheduler().runTaskTimer(*this, [&]() {dump_webui_log_once();},0,20);
-#endif
+        // WebUI 后端
+        tianyan::webui::WebUIConfig wcfg;
+        {
+            ordered_json cfg = read_config();
+            wcfg.secret = cfg.value("web_secret", "your_secret");
+            wcfg.port = cfg.value("web_port", 8098);
+
+            // 兼容旧版 web_config.json（Python 后端遗留）
+            // 如果存在且插件 config.json 中尚未迁移，则优先读取
+            namespace fs = std::filesystem;
+            auto legacy_path = fs::absolute(TianyanCore::dataPath) / "WebUI" / ".." / "web_config.json";
+            // 我们改为检查更合理的路径
+            if (fs::path old_cfg = fs::absolute(TianyanCore::dataPath).parent_path() / "web_config.json"; fs::exists(old_cfg) && !cfg.contains("web_secret")) {
+                try {
+                    std::ifstream ifs(old_cfg);
+                    json old_json;
+                    ifs >> old_json;
+                    if (old_json.contains("secret"))
+                        wcfg.secret = old_json["secret"].get<std::string>();
+                    if (old_json.contains("backend_port"))
+                        wcfg.port = old_json["backend_port"].get<int>();
+                    getLogger().info("Migrated WebUI config from legacy web_config.json");
+                } catch (...) {
+                    // 忽略旧配置文件错误
+                }
+            }
+            // 开发调试：设置 web_static_dir 指向 WebUI-Next/dist 则从磁盘提供静态文件，
+            // 修改前端后只需 npm run build，无需重新编译 C++ 插件
+            wcfg.static_dir = cfg.value("web_static_dir", "");
+        }
+        wcfg.thread_pool_size = 2;
+
+        webui_server_ = std::make_unique<tianyan::webui::WebUIServer>(wcfg);
+        webui_server_->setLogQueryService(
+            std::make_unique<LogQueryImpl>(*db_backend_));
+        webui_server_->setLanguageService(
+            std::make_unique<LanguageServiceImpl>(TianyanCore::language_path));
+        webui_server_->setMainThreadDispatcher(
+            [this](std::function<void()> task) {
+                getServer().getScheduler().runTask(*this, std::move(task));
+            });
+
+        if (webui_server_->start()) {
+            getLogger().info("WebUI (C++ backend) started on port "
+                + std::to_string(webui_server_->getPort()));
+        } else {
+            getLogger().error("Failed to start WebUI (C++ backend)");
+        }
     }
 
     //初始化内嵌物品栏ui
@@ -555,7 +649,11 @@ void TianyanPlugin::onDisable()
 
     if (TianyanCore::enable_web_ui)
     {
-        stop_web_server();
+        // 停止 C++ WebUI 后端
+        if (webui_server_) {
+            webui_server_->stop();
+            webui_server_.reset();
+        }
     }
 
     // NOTE: tyCore 和 db_backend_ 由插件析构时自动销毁。
@@ -1009,7 +1107,7 @@ void TianyanPlugin::runMigration(const std::string& source, const std::string& t
                 src_backend = std::make_unique<SqliteBackend>(fullPath.string());
             } else {
                 // Read MySQL config from config.json
-                json cfg = read_config();
+                ordered_json cfg = read_config();
                 RustMySQLConfig mysql_cfg;
                 mysql_cfg.host = cfg.value("mysql_host", std::string("127.0.0.1"));
                 mysql_cfg.port = cfg.value("mysql_port", 3306);
@@ -1022,7 +1120,7 @@ void TianyanPlugin::runMigration(const std::string& source, const std::string& t
             if (target == "sqlite") {
                 dst_backend = std::make_unique<SqliteBackend>(fullPath.string());
             } else {
-                json cfg = read_config();
+                ordered_json cfg = read_config();
                 RustMySQLConfig mysql_cfg;
                 mysql_cfg.host = cfg.value("mysql_host", std::string("127.0.0.1"));
                 mysql_cfg.port = cfg.value("mysql_port", 3306);
@@ -1248,7 +1346,7 @@ void TianyanPlugin::checkMigrateStatus()
 
             // Persist to config.json
             try {
-                json cfg;
+                ordered_json cfg;
                 if (std::ifstream in(TianyanCore::config_path); in.is_open()) {
                     in >> cfg;
                 }
@@ -1266,10 +1364,12 @@ void TianyanPlugin::checkMigrateStatus()
             getLogger().info(Tran->tr(Tran->getLocal("Active backend switched to {}"), yuhangle::migrate_target_type));
 
             // Restart WebUI to pick up new database config
-            if (TianyanCore::enable_web_ui) {
+            if (TianyanCore::enable_web_ui && webui_server_) {
                 getLogger().info(Tran->getLocal("Restarting WebUI for new database backend..."));
-                stop_web_server();
-                start_web_server(TianyanCore::dbPath);
+                webui_server_->stop();
+                if (!webui_server_->start()) {
+                    getLogger().error("Failed to restart WebUI (C++ backend)");
+                }
             }
         }
 
@@ -1726,7 +1826,7 @@ std::string StaticTranslate::get(const std::string& key) {
         std::string lang = "en_US";
         if (constexpr auto config_path = "plugins/tianyan_data/config.json"; fs::exists(config_path)) {
             std::ifstream i(config_path);
-            json j;
+            ordered_json j;
             i >> j;
             if (j.contains("language")) {
                 lang = j["language"].get<std::string>();

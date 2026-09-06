@@ -6,6 +6,7 @@
 #include <endstone/plugin/plugin.h>
 #include <string>
 #include <mutex>
+#include <nlohmann/json.hpp>
 #include "database_backend.h"
 #include "tianyan_protect.h"
 #include "event_listener.h"
@@ -13,6 +14,9 @@
 #include "translate.hpp"
 #include "offline_inventory.h"
 #include <tianyan/api.h>
+
+// WebUI 后端
+#include "webui/server.h"
 
 class StaticTranslate
 {
@@ -31,7 +35,7 @@ public:
     static void migrateOldBanData();
 
     // 读取配置文件
-    [[nodiscard]] json read_config() const;
+    [[nodiscard]] ordered_json read_config() const;
 
     void onLoad() override;
 
@@ -118,6 +122,8 @@ private:
 #ifdef _WIN32
     void dump_webui_log_once() const;
 #endif
+    // C++ WebUI 后端服务器
+    std::unique_ptr<tianyan::webui::WebUIServer> webui_server_;
     void default_init_sqlite_();
     void checkMigrateStatus();
     void runMigration(const std::string& source, const std::string& target, const std::string& sender_name) const;

@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.15)
 
 project(tianyan CXX)
 
-set(BASE_VERSION "1.2.3.6")
+set(BASE_VERSION "1.2.4")
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -48,6 +48,30 @@ FetchContent_MakeAvailable(endstone_inventoryui)
 set_target_properties(endstone_inventoryui PROPERTIES
         POSITION_INDEPENDENT_CODE ON
 )
+
+# ---- cpp-httplib (WebUI 后端 HTTP 库) ----
+FetchContent_Declare(
+    cpp_httplib
+    GIT_REPOSITORY https://github.com/yhirose/cpp-httplib.git
+    GIT_TAG v0.18.0
+)
+FetchContent_MakeAvailable(cpp_httplib)
+
+# ---- 前端资源内置化（Vue 3 + Vite 单文件构建） ----
+set(WEBUI_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/WebUI-Next/dist")
+set(WEBUI_RESOURCE_OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/generated/webui_resources.h")
+
+find_package(Python3 REQUIRED)
+
+add_custom_command(
+    OUTPUT ${WEBUI_RESOURCE_OUTPUT}
+    COMMAND ${Python3_EXECUTABLE} "${CMAKE_CURRENT_SOURCE_DIR}/cmake/embed_webui_resources.py"
+        ${WEBUI_SOURCE_DIR} ${WEBUI_RESOURCE_OUTPUT}
+    DEPENDS
+        ${WEBUI_SOURCE_DIR}/index.html
+    COMMENT "Embedding WebUI static resources into C++ byte arrays..."
+)
+add_custom_target(webui_resources DEPENDS ${WEBUI_RESOURCE_OUTPUT})
 
 # ---- Rust MySQL static library (built via cargo) ----
 if (WIN32)
@@ -112,7 +136,33 @@ find_package(ZLIB REQUIRED)
 file(GLOB PLUGIN_SOURCES
         CONFIGURE_DEPENDS
         "src/*.cpp"
+        "src/webui_adapter/*.cpp"
 )
+
+# ---- tianyan_webui 静态库 ----
+file(GLOB WEBUI_SOURCES
+        CONFIGURE_DEPENDS
+        "src/webui/*.cpp"
+        "src/webui/handlers/*.cpp"
+)
+
+add_library(tianyan_webui STATIC ${WEBUI_SOURCES})
+target_include_directories(tianyan_webui PUBLIC
+    ${CMAKE_SOURCE_DIR}/include
+    "${CMAKE_CURRENT_BINARY_DIR}/generated"
+    "${cpp_httplib_SOURCE_DIR}"
+)
+target_link_libraries(tianyan_webui PUBLIC
+    nlohmann_json::nlohmann_json
+)
+add_dependencies(tianyan_webui webui_resources)
+set_target_properties(tianyan_webui PROPERTIES
+    CXX_STANDARD 20
+    CXX_STANDARD_REQUIRED ON
+    POSITION_INDEPENDENT_CODE ON
+)
+# 抑制 cpp-httplib 的 operator"" _t 弃用警告（第三方库代码，不影响功能）
+target_compile_options(tianyan_webui PRIVATE -Wno-deprecated-literal-operator)
 
 endstone_add_plugin(${PROJECT_NAME} ${PLUGIN_SOURCES})
 
@@ -128,20 +178,26 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
         endstone_inventoryui
         rust_mysql
         world_inspector
+        tianyan_webui
         ${RUST_MYSQL_SYSTEM_LIBS}
 )
 
-# Release 优化
-if(MSVC)
-    # MSVC: 允许重复符号（多个 Rust .a 都有 std 符号）
-    target_link_options(${PROJECT_NAME} PRIVATE /FORCE:MULTIPLE)
-else()
-    # GCC/Clang: 函数分段 + GC 死代码消除 + 允许多个 Rust .a 重复 std 符号
-    target_compile_options(${PROJECT_NAME} PRIVATE -ffunction-sections -fdata-sections)
-    target_link_options(${PROJECT_NAME} PRIVATE -Wl,--gc-sections -Wl,--allow-multiple-definition)
+# 优化 + Rust 多定义兼容
+if(CMAKE_BUILD_TYPE STREQUAL "Release" OR CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
+    if(MSVC)
+        # MSVC: 允许重复符号（多个 Rust .a 都有 std 符号）
+        target_link_options(${PROJECT_NAME} PRIVATE /FORCE:MULTIPLE)
+    else()
+        # GCC/Clang: 函数分段 + GC 死代码消除
+        target_compile_options(${PROJECT_NAME} PRIVATE -ffunction-sections -fdata-sections)
+        target_link_options(${PROJECT_NAME} PRIVATE -Wl,--allow-multiple-definition)
+        # 注意：--gc-sections 可能误杀嵌入的 WebUI 资源数据，
+        # 如有白屏问题可取消下面注释排查：
+        # target_link_options(${PROJECT_NAME} PRIVATE -Wl,--gc-sections)
+    endif()
 endif()
 
-# Linux Release 构建后自动 strip
+# Linux Release 构建后自动 strip（可能误杀嵌入数据，排查时注释）
 if(CMAKE_BUILD_TYPE STREQUAL "Release" AND NOT MSVC)
     add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
         COMMAND strip $<TARGET_FILE:${PROJECT_NAME}>
