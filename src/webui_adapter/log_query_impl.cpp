@@ -72,12 +72,30 @@ auto LogQueryImpl::buildQuery(
         "id", "name", "type", "obj_id", "obj_name", "world", "status", "data"
     };
 
-    if (filter_type && filter_value && !filter_value->empty()) {
-        if (std::ranges::find(kAllowedFields, *filter_type) != kAllowedFields.end()) {
-            std::string escaped_pattern = sqlEscape("%" + *filter_value + "%");
+    // 关键词模糊匹配：
+    // - 指定了字段(filter_type) → 仅在该字段上 LIKE
+    // - 未指定字段（前端“全部字段/不筛选”只传 filter_value）→ 在所有可搜索字段上 OR 匹配
+    if (filter_value && !filter_value->empty()) {
+        const std::string escaped_pattern = sqlEscape("%" + *filter_value + "%");
+        if (filter_type &&
+            std::ranges::find(kAllowedFields, *filter_type) != kAllowedFields.end()) {
             std::string condition = std::format(
                 " AND ({} IS NOT NULL AND {} != '' AND {} LIKE '{}')",
                 *filter_type, *filter_type, *filter_type, escaped_pattern);
+            qb.count_sql += condition;
+            qb.data_sql += condition;
+        } else if (!filter_type) {
+            // 未指定字段：全部字段关键词搜索
+            std::string condition = " AND (";
+            bool first = true;
+            for (const auto field : kAllowedFields) {
+                if (!first) condition += " OR ";
+                first = false;
+                condition += std::format(
+                    "({} IS NOT NULL AND {} != '' AND {} LIKE '{}')",
+                    field, field, field, escaped_pattern);
+            }
+            condition += ")";
             qb.count_sql += condition;
             qb.data_sql += condition;
         }
